@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Firebase SDK (compat builds — classic scripts, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+  const FIREBASE_CONFIG = {
+    apiKey:            "AIzaSyCDI27uM514-NXR7X5ICSs_UJBnd6izBek",
+    authDomain:        "accountmanagementtool-569f5.firebaseapp.com",
+    projectId:         "accountmanagementtool-569f5",
+    storageBucket:     "accountmanagementtool-569f5.firebasestorage.app",
+    messagingSenderId: "498204155099",
+    appId:             "1:498204155099:web:4273d90954382d98c540fe",
+    measurementId:     "G-CE6BNSGWST"
+  };
+  const FIREBASE_ENABLED = true;
+  firebase.initializeApp(FIREBASE_CONFIG);
+</script>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Account Management Tool</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #0f1117; color: #e0e0e0; min-height: 100vh; }
+  .header { background: linear-gradient(135deg, #1a1f2e 0%, #16213e 100%); border-bottom: 2px solid #2563eb; padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0.5px; }
+  .header h1 span { color: #2563eb; }
+  .header-stats { display: flex; gap: 20px; }
+  .header-stat { text-align: center; }
+  .header-stat .val { font-size: 18px; font-weight: 700; color: #2563eb; }
+  .header-stat .lbl { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+  .nav { background: #1a1f2e; display: flex; border-bottom: 1px solid #2a2f3e; padding: 0 24px; overflow-x: auto; }
+  .nav-tab { padding: 12px 18px; cursor: pointer; font-size: 13px; color: #888; border-bottom: 2px solid transparent; transition: all 0.2s; font-weight: 500; white-space: nowrap; }
+  .nav-tab:hover { color: #ccc; }
+  .nav-tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .main { height: calc(100vh - 110px); overflow: hidden; }
+  .panel { display: none; height: 100%; overflow-y: auto; padding: 20px 24px; }
+  .panel.active { display: block; }
+  .card { background: #1a1f2e; border: 1px solid #2a2f3e; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .card-title { font-size: 14px; font-weight: 700; color: #fff; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+  .badge-blue { background: rgba(37,99,235,0.2); color: #60a5fa; }
+  .badge-green { background: rgba(16,185,129,0.2); color: #34d399; }
+  .badge-yellow { background: rgba(245,158,11,0.2); color: #fbbf24; }
+  .badge-red { background: rgba(239,68,68,0.2); color: #f87171; }
+  .badge-purple { background: rgba(139,92,246,0.2); color: #a78bfa; }
+  .acct-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .acct-table th { color: #888; font-weight: 600; text-align: left; padding: 6px 8px; border-bottom: 1px solid #2a2f3e; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px; }
+  .acct-table td { padding: 7px 8px; border-bottom: 1px solid #1e2535; vertical-align: middle; }
+  .acct-table tr:hover td { background: rgba(37,99,235,0.05); }
+  .vol-bar-wrap { display: flex; align-items: center; gap: 8px; }
+  .vol-bar { height: 6px; background: #2563eb; border-radius: 3px; min-width: 2px; }
+  .vol-text { font-size: 11px; color: #60a5fa; font-weight: 600; white-space: nowrap; }
+  .team-avatar { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .btn { padding: 7px 14px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-sm { padding: 4px 10px; font-size: 11px; }
+  .btn-ghost { background: transparent; border: 1px solid #2a2f3e; color: #888; }
+  .btn-ghost:hover { background: #2a2f3e; color: #ccc; }
+  .btn-danger { background: rgba(239,68,68,0.15); border: 1px solid #ef4444; color: #f87171; }
+  .btn-danger:hover { background: rgba(239,68,68,0.25); }
+  .btn-success { background: rgba(16,185,129,0.15); border: 1px solid #10b981; color: #34d399; }
+  input, select { background: #1e2535; border: 1px solid #2a2f3e; color: #e0e0e0; border-radius: 6px; padding: 6px 10px; font-size: 12px; outline: none; }
+  input:focus, select:focus { border-color: #2563eb; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat-box { background: #1a1f2e; border: 1px solid #2a2f3e; border-radius: 10px; padding: 16px; text-align: center; }
+  .stat-box .stat-val { font-size: 22px; font-weight: 700; color: #2563eb; }
+  .stat-box .stat-lbl { font-size: 11px; color: #888; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: #1a1f2e; border: 1px solid #2a2f3e; border-radius: 12px; padding: 24px; width: 540px; max-width: 95vw; max-height: 88vh; overflow-y: auto; }
+  .modal h2 { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: #fff; }
+  .modal-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .modal-label { font-size: 12px; color: #888; width: 130px; flex-shrink: 0; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .pct-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .pct-row .name { font-size: 12px; width: 110px; color: #ccc; }
+  .pct-row input[type="range"] { flex: 1; accent-color: #2563eb; }
+  .pct-row .pct-val { width: 38px; text-align: right; font-size: 12px; color: #60a5fa; }
+  .ae-Matt { background: #2563eb; } .ae-Marc { background: #7c3aed; } .ae-Dave { background: #059669; }
+  .ae-Paul { background: #d97706; } .ae-Justin { background: #dc2626; } .ae-Colin { background: #0891b2; }
+  .ae-Tom { background: #65a30d; } .ae-Roy { background: #e11d48; } .ae-Garrett { background: #9333ea; }
+  .ae-Corin { background: #f59e0b; } .ae-other { background: #4b5563; }
+  .pm-name-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .pm-volume { font-size: 22px; font-weight: 700; color: #2563eb; }
+  .pm-meta { font-size: 11px; color: #888; }
+  .section-title { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #2a2f3e; }
+  .alert { padding: 10px 14px; border-radius: 8px; font-size: 12px; margin-bottom: 12px; }
+  .alert-info { background: rgba(37,99,235,0.15); border: 1px solid rgba(37,99,235,0.3); color: #93c5fd; }
+  .add-form { background: #1e2535; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+  .form-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+  .team-member-list { display: flex; flex-direction: column; gap: 6px; }
+  .team-member-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #1e2535; border-radius: 8px; }
+  .role-AE { background: rgba(245,158,11,0.2); color: #fbbf24; }
+  .role-AM { background: rgba(37,99,235,0.2); color: #60a5fa; }
+  .role-PM { background: rgba(16,185,129,0.2); color: #34d399; }
+  .role-PC { background: rgba(139,92,246,0.2); color: #a78bfa; }
+  .drag-handle { cursor: grab; color: #444; padding: 0 6px; font-size: 14px; }
+  .drag-handle:active { cursor: grabbing; }
+  .drag-over td { background: rgba(37,99,235,0.12) !important; }
+  .split-tag { font-size: 10px; padding: 1px 5px; background: rgba(37,99,235,0.15); color: #60a5fa; border-radius: 4px; cursor: pointer; }
+  .split-tag:hover { background: rgba(37,99,235,0.3); }
+  /* Team cards */
+  .team-card { background: #1a1f2e; border: 1px solid #2a2f3e; border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  .team-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .team-name-input { background: transparent; border: none; border-bottom: 1px dashed #2a2f3e; color: #fff; font-size: 15px; font-weight: 700; padding: 2px 4px; width: 200px; outline: none; }
+  .team-name-input:focus { border-bottom-color: #2563eb; }
+  .team-roles-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .team-role-slot { background: #1e2535; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
+  .team-role-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
+  .team-role-select { background: #0f1117; border: 1px solid #2a2f3e; color: #e0e0e0; border-radius: 5px; padding: 4px 8px; font-size: 12px; outline: none; flex: 1; }
+  .team-role-select:focus { border-color: #2563eb; }
+  /* Volume by team tab */
+  .team-vol-card { background: #1a1f2e; border: 1px solid #2a2f3e; border-radius: 10px; padding: 18px; }
+  .team-vol-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .team-vol-name { font-size: 15px; font-weight: 700; color: #fff; }
+  .team-vol-total { font-size: 20px; font-weight: 700; color: #2563eb; }
+  .team-vol-members { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  .team-vol-member-pill { display: flex; align-items: center; gap: 5px; background: #1e2535; border-radius: 20px; padding: 3px 10px 3px 5px; font-size: 11px; }
+  /* Role breakdown bars */
+  .role-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+  .role-bar-label { font-size: 11px; color: #888; width: 60px; text-align: right; }
+  .role-bar-outer { flex: 1; background: #1e2535; border-radius: 3px; height: 7px; }
+  .role-bar-inner { height: 7px; border-radius: 3px; }
+  .role-bar-val { font-size: 11px; color: #60a5fa; width: 60px; }
+  .vol-people-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr)); gap: 10px; margin-top: 8px; }
+  .vol-person-card { background: #1e2535; border-radius: 8px; padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+  .vol-person-info { flex: 1; }
+  .vol-person-name { font-size: 13px; font-weight: 600; color: #fff; }
+  .vol-person-sub { font-size: 11px; color: #888; }
+  .vol-person-amount { font-size: 14px; font-weight: 700; color: #2563eb; text-align: right; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: #1a1f2e; }
+  ::-webkit-scrollbar-thumb { background: #2a3045; border-radius: 3px; }
+  @media (max-width: 768px) {
+    .grid-4 { grid-template-columns: 1fr 1fr; }
+    .pm-grid { grid-template-columns: 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .team-roles-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Project <span>Management</span> — Account Management Tool</h1>
+  <div class="header-stats">
+    <div class="header-stat"><div class="val" id="hdr-pms">24</div><div class="lbl">Account Managers</div></div>
+    <div class="header-stat"><div class="val" id="hdr-accts">196</div><div class="lbl">Active Accounts</div></div>
+    <div class="header-stat"><div class="val" id="hdr-vol">$63.7M</div><div class="lbl">Total Volume</div></div>
+  </div>
+</div>
+
+<div class="nav">
+  <div class="nav-tab active" onclick="showTab('dashboard',this)">📊 Dashboard</div>
+  <div class="nav-tab" onclick="showTab('accounts',this)">📋 Accounts</div>
+  <div class="nav-tab" onclick="showTab('teams',this)">👥 Teams</div>
+  <div class="nav-tab" onclick="showTab('pms',this)">📌 Account Managers</div>
+  <div class="nav-tab" onclick="showTab('teamvol',this)">📈 Volume by Team</div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="panel-dashboard" class="panel active">
+  <div class="grid-4" style="margin-bottom:20px;" id="summary-stats"></div>
+  <div class="section-title">Volume by Role</div>
+  <div class="grid-3" style="margin-bottom:24px">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#34d399;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Project Managers (PM)</div>
+      <div id="pm-vol-list"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#60a5fa;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Account Managers (AM)</div>
+      <div id="am-vol-list"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#a78bfa;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Project Coordinators (PC)</div>
+      <div id="pc-vol-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ACCOUNTS -->
+<div id="panel-accounts" class="panel">
+  <div class="add-form">
+    <div class="section-title">Add New Account</div>
+    <div class="form-row">
+      <div class="form-group"><label>Account Name</label><input id="new-acct-name" placeholder="Account name" style="width:180px"></div>
+      <div class="form-group"><label>Volume ($)</label><input id="new-acct-vol" type="number" placeholder="0" style="width:110px"></div>
+      <div class="form-group"><label>AE</label><select id="new-acct-ae"></select></div>
+      <div class="form-group"><label>Assign to PM</label><select id="new-acct-pm"></select></div>
+      <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary btn-sm" onclick="addAccount()">+ Add Account</button></div>
+    </div>
+  </div>
+  <div class="alert alert-info">💡 Drag rows to reassign accounts between Account Managers. Click any volume number to edit inline. Click Edit to open full detail.</div>
+  <div id="accounts-table-wrap"></div>
+</div>
+
+<!-- TEAMS -->
+<div id="panel-teams" class="panel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <div class="section-title" style="margin-bottom:0;border:none">Team Builder</div>
+      <div style="font-size:12px;color:#888;margin-top:4px">Each team has one AE, one AM, one PM, and one PC by default. Edit team names and members freely.</div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="addTeam()">+ Add Team</button>
+  </div>
+  <div style="margin-bottom:20px">
+    <div class="section-title">Add Team Member</div>
+    <div class="add-form" style="margin-bottom:0">
+      <div class="form-row">
+        <div class="form-group"><label>Name</label><input id="new-member-name" placeholder="Full name" style="width:140px"></div>
+        <div class="form-group"><label>Role</label>
+          <select id="new-member-role">
+            <option value="AE">Account Executive (AE)</option>
+            <option value="AM">Account Manager (AM)</option>
+            <option value="PM" selected>Project Manager (PM)</option>
+            <option value="PC">Project Coordinator (PC)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary btn-sm" onclick="addTeamMember()">+ Add Member</button></div>
+      </div>
+    </div>
+  </div>
+  <div id="teams-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:16px"></div>
+  <div style="margin-top:20px">
+    <div class="section-title">Full Roster</div>
+    <div id="team-member-list"></div>
+  </div>
+</div>
+
+<!-- ACCOUNT MANAGERS (PM tab) -->
+<div id="panel-pms" class="panel">
+  <div class="alert alert-info">💡 Click Edit on any account to change volume, AE, team assignment, or split percentages.</div>
+  <div id="pm-grid" class="pm-grid"></div>
+</div>
+
+<!-- VOLUME BY TEAM -->
+<div id="panel-teamvol" class="panel">
+  <div class="grid-4" style="margin-bottom:20px;" id="teamvol-stats"></div>
+  <div id="teamvol-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px"></div>
+</div>
+
+<!-- MODAL: EDIT ACCOUNT -->
+<div class="modal-overlay" id="modal-account">
+  <div class="modal">
+    <h2 id="modal-acct-title">Edit Account</h2>
+    <div class="modal-row"><span class="modal-label">Account Name</span><input id="edit-acct-name" style="flex:1"></div>
+    <div class="modal-row"><span class="modal-label">Total Volume ($)</span><input id="edit-acct-vol" type="number" style="flex:1"></div>
+    <div class="modal-row"><span class="modal-label">Account Exec (AE)</span><select id="edit-acct-ae" style="flex:1"></select></div>
+    <div class="modal-row"><span class="modal-label">Project Manager</span><select id="edit-acct-pm" style="flex:1"></select></div>
+    <div class="modal-row"><span class="modal-label">Acct Manager (AM)</span><select id="edit-acct-am" style="flex:1"><option value="">— None —</option></select></div>
+    <div class="modal-row"><span class="modal-label">Proj Coord (PC)</span><select id="edit-acct-pc" style="flex:1"><option value="">— None —</option></select></div>
+    <div id="edit-split-section" style="display:none">
+      <div class="section-title" style="margin-top:16px">Volume Split</div>
+      <div class="alert alert-info" style="margin-bottom:10px">AE is excluded. Percentages default to even split and are fully editable. They auto-balance.</div>
+      <div id="edit-split-pcts"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('modal-account')">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteCurrentAccount()">Delete</button>
+      <button class="btn btn-primary btn-sm" onclick="saveAccount()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== DATA =====
+let teamMembers = [
+  {id:'ae-matt', name:'Matt', role:'AE'},
+  {id:'ae-marc', name:'Marc', role:'AE'},
+  {id:'ae-dave', name:'Dave', role:'AE'},
+  {id:'ae-paul', name:'Paul', role:'AE'},
+  {id:'ae-justin', name:'Justin', role:'AE'},
+  {id:'ae-colin', name:'Colin', role:'AE'},
+  {id:'ae-tom', name:'Tom', role:'AE'},
+  {id:'ae-roy', name:'Roy', role:'AE'},
+  {id:'ae-garrett', name:'Garrett', role:'AE'},
+  {id:'ae-corin', name:'Corin', role:'AE'},
+  {id:'pm-erin', name:'Erin', role:'PM'},
+  {id:'pm-peer', name:'Peer', role:'PM'},
+  {id:'pm-anthony', name:'Anthony', role:'PM'},
+  {id:'pm-jack', name:'Jack', role:'PM'},
+  {id:'pm-mattg', name:'Matt G', role:'PM'},
+  {id:'pm-mallick', name:'Mallick', role:'PM'},
+  {id:'pm-damon', name:'Damon', role:'PM'},
+  {id:'pm-scott', name:'Scott', role:'PM'},
+  {id:'pm-alex', name:'Alex', role:'PM'},
+  {id:'pm-connie', name:'Connie', role:'PM'},
+  {id:'pm-lisa', name:'Lisa', role:'PM'},
+  {id:'pm-mitch', name:'Mitch', role:'PM'},
+  {id:'pm-katie', name:'Katie', role:'PM'},
+  {id:'pm-crystal', name:'Crystal', role:'PM'},
+  {id:'pm-dan', name:'Dan', role:'PM'},
+  {id:'pm-kaitlin', name:'Kaitlin', role:'PM'},
+  {id:'pm-hannah', name:'Hannah', role:'PM'},
+  {id:'pm-navia', name:'Navia', role:'PM'},
+  {id:'pm-sam', name:'Sam', role:'PM'},
+  {id:'pm-roypm', name:'Roy', role:'PM'},
+  {id:'pm-corinpm', name:'Corin', role:'PM'},
+  {id:'pm-jim', name:'Jim', role:'PM'},
+  {id:'pm-lisat', name:'Lisa T', role:'PM'},
+  {id:'pm-paulpm', name:'Paul', role:'PM'},
+];
+
+let teams = [
+  { id:'team-1', name:'Team Alpha',   ae:'Matt',    am:'', pm:'Erin',    pc:'' },
+  { id:'team-2', name:'Team Bravo',   ae:'Marc',    am:'', pm:'Peer',    pc:'' },
+  { id:'team-3', name:'Team Charlie', ae:'Dave',    am:'', pm:'Anthony', pc:'' },
+  { id:'team-4', name:'Team Delta',   ae:'Tom',     am:'', pm:'Jack',    pc:'' },
+  { id:'team-5', name:'Team Echo',    ae:'Dave',    am:'', pm:'Matt G',  pc:'' },
+  { id:'team-6', name:'Team Foxtrot', ae:'Justin',  am:'', pm:'Lisa',    pc:'' },
+];
+
+let accounts = [
+  {id:'a1', name:'AXON', volume:4600000, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'a2', name:'OCTAGON BOA', volume:2200000, ae:'Marc', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'a3', name:'HANWHA VISION', volume:1800000, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'a4', name:'Blockskye', volume:190000, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'a5', name:'HALL RESEARCH TECHNOLOGIES,LLC', volume:69000, ae:'Dave', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'a6', name:'OCTAGON COMCAST BUSINESS', volume:0, ae:'Marc', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'a7', name:'Gropen', volume:0, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'a8', name:'HK Design', volume:0, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'a9', name:'Brinc', volume:0, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'a10', name:'GateKeeper Systems', volume:0, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
+  {id:'b1', name:'HUBBELL POWER SYSTEMS, INC', volume:4500000, ae:'Marc', pm:'Peer', am:'', pc:'', splits:{}},
+  {id:'b2', name:'BAUSCH HEALTH US, LLC.', volume:1300000, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
+  {id:'b3', name:'HARMONY BIOSCIENCES, LLC', volume:452000, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
+  {id:'b4', name:'TRIS THERAPEUTICS, LLC', volume:246000, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
+  {id:'b5', name:'MITSUBISHI TANABE PHARMA AMERI', volume:213000, ae:'Justin', pm:'Peer', am:'', pc:'', splits:{}},
+  {id:'b6', name:'AVANTIK', volume:156000, ae:'Corin', pm:'Peer', am:'', pc:'', splits:{}},
+  {id:'b7', name:'AES CLEAN TECHNOLOGY, INC.', volume:146000, ae:'Colin', pm:'Peer', am:'', pc:'', splits:{}},
+  {id:'b8', name:'ALASTIN SKINCARE', volume:2000, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
+  {id:'b9', name:'SKINBETTER SCIENCE', volume:0, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
+  {id:'c1', name:'Incyte', volume:2000000, ae:'Justin', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c2', name:'ENDO PHARMACEUTICALS, INC', volume:1200000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c3', name:'WEST PHARMACEUTICAL SERVICES', volume:634000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c4', name:'CIVCO RADIOTHERAPY (QFIX - CQ)', volume:538000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c5', name:'DSM BIOMEDICAL', volume:490000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c6', name:'ALMIRALL PHARMACEUTICALS', volume:322000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c7', name:'ALMIRALL', volume:306000, ae:'Justin', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c8', name:'MITSUBISHI CHEMICAL (QUADRANT)', volume:265000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c9', name:'WRG LIVE', volume:258000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c10', name:'ZYVET', volume:233000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c11', name:"TOSHIBA INT'L (MACHINERY)", volume:179000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c12', name:'ZYDUS PHARMACEUTICALS', volume:108000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c13', name:'SAINT-GOBAIN PERFORMANCE PLAST', volume:75000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c14', name:'EPIONCE', volume:56000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c15', name:'SAINT-GOBAIN CORPORATION', volume:48000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c16', name:'Strata Skin Sciences', volume:29000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'c17', name:'Incyte Oncology', volume:0, ae:'Justin', pm:'Anthony', am:'', pc:'', splits:{}},
+  {id:'d1', name:'PharmaEssentia USA Corporation', volume:1400000, ae:'Colin', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d2', name:'EVENT STRATEGY GROUP', volume:1300000, ae:'Tom', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d3', name:'CANTALOUPE, INC.', volume:514000, ae:'Matt', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d4', name:'RHYTHM TX', volume:450000, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d5', name:'ALMAC GROUP - ALMAC HOUSE', volume:362000, ae:'Matt', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d6', name:'Kahua', volume:350000, ae:'Matt', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d7', name:'IRIDIUM', volume:337000, ae:'Marc', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d8', name:'WILKINS MEDIA', volume:286000, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d9', name:'ABBOTT VASCULAR', volume:261000, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d10', name:'PROJECT VELOCITY, INC.', volume:261000, ae:'Colin', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d11', name:'CDL NUCLEAR', volume:215000, ae:'Colin', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d12', name:'WANZL', volume:112000, ae:'Matt', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d13', name:'ABBOTT DIABETES CARE', volume:105000, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d14', name:'CC FORD GROUP', volume:63000, ae:'Justin', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d15', name:'SHOW SOURCE', volume:35000, ae:'Tom', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d16', name:'LEO', volume:0, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'d17', name:'Return Pro', volume:0, ae:'Colin', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'e1', name:'ASCENDIS PHARMA INC.', volume:2600000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e2', name:'CENTRAL SQUARE (SUPERION)', volume:1200000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e3', name:'CQ MEDICAL', volume:373000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e4', name:'1880 Hospitalty', volume:200000, ae:'Matt', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e5', name:'HOUSTON TEXANS', volume:129000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e6', name:'PHILADELPHIA SCIENTIFIC', volume:116000, ae:'Justin', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e7', name:'GEMELLI BIOTECH', volume:114000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e8', name:'EDMENTUM', volume:103000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e9', name:'VILLEROY & BOCH USA, INC.', volume:75000, ae:'Matt', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e10', name:'TOUCH POINT MEDICAL', volume:74000, ae:'Marc', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e11', name:'GovOS / Kofile', volume:7000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'e12', name:'Ascensus', volume:0, ae:'Marc', pm:'Matt G', am:'', pc:'', splits:{}},
+  {id:'f1', name:'Corcept', volume:2700000, ae:'Dave', pm:'Mallick', am:'', pc:'', splits:{}},
+  {id:'f2', name:'Geron', volume:935000, ae:'Dave', pm:'Mallick', am:'', pc:'', splits:{}},
+  {id:'f3', name:'Springworks', volume:701000, ae:'Dave', pm:'Mallick', am:'', pc:'', splits:{}},
+  {id:'f4', name:'Amarok', volume:0, ae:'Marc', pm:'Mallick', am:'', pc:'', splits:{}},
+  {id:'g1', name:'THALES GLOBAL SERVICES FRANCE', volume:1400000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g2', name:'DIETZ & WATSON, INC.', volume:491000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g3', name:'JONATHAN ENGINEERED SOLUTIONS', volume:464000, ae:'Garrett', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g4', name:'THALES DIS USA, ID & VERIFICAT', volume:415000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g5', name:'AXALTA COATING SYSTEMS', volume:381000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g6', name:'THALES AEROSPACE DIVISION', volume:348000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g7', name:'THALES - MORGAN BREIT', volume:181000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g8', name:'THALES COMM- MD', volume:167000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g9', name:'THALES AVIONICS', volume:156000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g10', name:'HOVERTECH INTERNATIONAL', volume:144000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g11', name:'CHATHAM FINANCIAL', volume:81000, ae:'Marc', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g12', name:'THALES SIX GTS FRANCE', volume:73000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g13', name:'THALES - KATIE FYFFE', volume:68000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g14', name:'THALES COMMUNICATIONS, INC.-VA', volume:5000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'g15', name:'LCR EMBEDDED SYSTEMS, INC.', volume:4000, ae:'Garrett', pm:'Damon', am:'', pc:'', splits:{}},
+  {id:'h1', name:'PROOF PRODUCTIONS-VMIGROUP', volume:4100000, ae:'Matt', pm:'Scott', am:'', pc:'', splits:{}},
+  {id:'h2', name:'GRUBBRR', volume:124000, ae:'Matt', pm:'Scott', am:'', pc:'', splits:{}},
+  {id:'h3', name:'Robot Proof', volume:6000, ae:'Matt', pm:'Scott', am:'', pc:'', splits:{}},
+  {id:'h4', name:'Mark43', volume:0, ae:'Matt', pm:'Scott', am:'', pc:'', splits:{}},
+  {id:'i1', name:'CSL BEHRING', volume:3300000, ae:'Tom', pm:'Alex', am:'', pc:'', splits:{}},
+  {id:'i2', name:'CUSTOM AMERICA', volume:221000, ae:'Corin', pm:'Alex', am:'', pc:'', splits:{}},
+  {id:'i3', name:'SES', volume:55000, ae:'Colin', pm:'Alex', am:'', pc:'', splits:{}},
+  {id:'i4', name:'BioCryst', volume:0, ae:'Colin', pm:'Alex', am:'', pc:'', splits:{}},
+  {id:'i5', name:'Otsuka', volume:0, ae:'Colin', pm:'Alex', am:'', pc:'', splits:{}},
+  {id:'i6', name:'Ensight', volume:0, ae:'Justin', pm:'Alex', am:'', pc:'', splits:{}},
+  {id:'i7', name:'Survalent', volume:0, ae:'Justin', pm:'Alex', am:'', pc:'', splits:{}},
+  {id:'j1', name:'SUN PHARMACEUTICAL', volume:1400000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j2', name:'AESCULAP, INC.', volume:802000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j3', name:'PARAGONIX TECHNOLOGIES', volume:496000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j4', name:'Certainteed', volume:335000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j5', name:'SONEPAR USA', volume:219000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j6', name:'Saint Gobain Abrasives', volume:101000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j7', name:'NOVACARE - REHABILITATION', volume:66000, ae:'Tom', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j8', name:'DOMPE US', volume:4000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j9', name:'TenPoint', volume:0, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j10', name:'Bolder', volume:0, ae:'Matt', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'k1', name:'IDORSIA PHARMACEUTICALS US Inc', volume:1300000, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k2', name:'TAKEDA PHARMACEUTICALS USA', volume:970000, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k3', name:'Aiphone', volume:237000, ae:'Corin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k4', name:'CESIUM', volume:217000, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k5', name:'AVERITAS PHARMA, INC.', volume:125000, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k6', name:'KOURA GLOBAL', volume:89000, ae:'Colin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k7', name:'JETFUEL STUDIO (Walmart)', volume:71000, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k8', name:'BRANDON INDUSTRIES', volume:63000, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k9', name:'FOX REHABILITATION', volume:34000, ae:'Colin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k10', name:'EXTANT LIGHTING', volume:5000, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k11', name:'WAVIN', volume:1000, ae:'Colin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k12', name:'ITF Therapeutics/Sound Health', volume:0, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'k13', name:'Evenlite', volume:0, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
+  {id:'l1', name:'SENSUS HEALTHCARE', volume:605000, ae:'Justin', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l2', name:'CONSTRUCT CONNECT', volume:434000, ae:'Garrett', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l3', name:'ANTERIX', volume:218000, ae:'Justin', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l4', name:"STANFORD CHILDREN'S HEALTH", volume:207000, ae:'Colin', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l5', name:'Frontage labs', volume:198000, ae:'Colin', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l6', name:'WORLD CINEMA / World View', volume:140000, ae:'Matt', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l7', name:'HAVERFORD SYSTEMS / PTZ Optics', volume:108000, ae:'Justin', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l8', name:"COOK CHILDREN'S HEALTH CARE SY", volume:108000, ae:'Colin', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l9', name:'OPTERUS', volume:70000, ae:'Colin', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l10', name:'EVEREST GLOBAL', volume:53000, ae:'Dave', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l11', name:'Amicus', volume:0, ae:'Justin', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'l12', name:'Erie Strayer', volume:0, ae:'Colin', pm:'Mitch', am:'', pc:'', splits:{}},
+  {id:'m1', name:'KOLLINS COMMUNICATIONS', volume:312000, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m2', name:'Tractian', volume:300000, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m3', name:'BEAUMONT', volume:214000, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m4', name:'QLIK', volume:200000, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m5', name:'In Focus', volume:180000, ae:'Corin', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m6', name:'LG RETAIL', volume:167000, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m7', name:'OCUGEN, INC.', volume:157000, ae:'Corin', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m8', name:'Cardinal Digital Marketing', volume:16000, ae:'Roy', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m9', name:'Nothing', volume:0, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m10', name:'LG SKS', volume:0, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m11', name:'Berry and Homer', volume:0, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m12', name:'Schema App', volume:0, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m13', name:'Wachter', volume:0, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m14', name:'3B Protection', volume:0, ae:'Roy', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m15', name:'Hivewatch', volume:0, ae:'Matt', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'m16', name:'Concrete Countertop Solutions', volume:0, ae:'Roy', pm:'Katie', am:'', pc:'', splits:{}},
+  {id:'n1', name:'INTERCEPT / Alfasigma', volume:694000, ae:'Dave', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n2', name:'UJET, INC.', volume:106000, ae:'Marc', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n3', name:'Nexus', volume:104000, ae:'Colin', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n4', name:'SUPPLY POINT SYSTEMS, INC.', volume:48000, ae:'Marc', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n5', name:'HAMAMATSU', volume:1000, ae:'Matt', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n6', name:'TTM', volume:0, ae:'Colin', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n7', name:'OCTOGON Mastercard', volume:0, ae:'Marc', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n8', name:'Avalo', volume:0, ae:'Colin', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n9', name:'Avalo Therapeutics', volume:0, ae:'Colin', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n10', name:'Ramon Space', volume:0, ae:'Colin', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'n11', name:'Strongarm', volume:0, ae:'Dave', pm:'Crystal', am:'', pc:'', splits:{}},
+  {id:'o1', name:'i-PRO Americas Inc.', volume:662000, ae:'Matt', pm:'Dan', am:'', pc:'', splits:{}},
+  {id:'o2', name:'ERCO', volume:224000, ae:'Matt', pm:'Dan', am:'', pc:'', splits:{}},
+  {id:'o3', name:'AXON Portables', volume:0, ae:'Matt', pm:'Dan', am:'', pc:'', splits:{}},
+  {id:'p1', name:'Blue J', volume:175000, ae:'Matt', pm:'Kaitlin', am:'', pc:'', splits:{}},
+  {id:'p2', name:'ACC Premier', volume:147000, ae:'Matt', pm:'Kaitlin', am:'', pc:'', splits:{}},
+  {id:'p3', name:'BORMIOLI ROCCO GLASS COMPANY', volume:90000, ae:'Matt', pm:'Kaitlin', am:'', pc:'', splits:{}},
+  {id:'p4', name:'ALVOGEN, INC. (Almaject)', volume:89000, ae:'Dave', pm:'Kaitlin', am:'', pc:'', splits:{}},
+  {id:'p5', name:'Orphalon (Wedgewood)', volume:31000, ae:'Dave', pm:'Kaitlin', am:'', pc:'', splits:{}},
+  {id:'p6', name:'Fable', volume:25000, ae:'Matt', pm:'Kaitlin', am:'', pc:'', splits:{}},
+  {id:'p7', name:'NKarta', volume:0, ae:'Colin', pm:'Kaitlin', am:'', pc:'', splits:{}},
+  {id:'q1', name:'Cerelia', volume:169000, ae:'Corin', pm:'Hannah', am:'', pc:'', splits:{}},
+  {id:'q2', name:'89 Bio', volume:85000, ae:'Colin', pm:'Hannah', am:'', pc:'', splits:{}},
+  {id:'q3', name:'BELL AND EVANS', volume:75000, ae:'Colin', pm:'Hannah', am:'', pc:'', splits:{}},
+  {id:'q4', name:'DYNE THERAPEUTICS', volume:33000, ae:'Colin', pm:'Hannah', am:'', pc:'', splits:{}},
+  {id:'q5', name:'Lighthouse Instruments', volume:19000, ae:'Colin', pm:'Hannah', am:'', pc:'', splits:{}},
+  {id:'r1', name:'DATA DIMENSIONS, LLC/One Call', volume:110000, ae:'Colin', pm:'Navia', am:'', pc:'', splits:{}},
+  {id:'r2', name:'Biocodex', volume:76000, ae:'Justin', pm:'Navia', am:'', pc:'', splits:{}},
+  {id:'r3', name:'Medrisk', volume:68000, ae:'Colin', pm:'Navia', am:'', pc:'', splits:{}},
+  {id:'r4', name:'Afton', volume:25000, ae:'Colin', pm:'Navia', am:'', pc:'', splits:{}},
+  {id:'r5', name:'I&I SLING (SLINGMAX)', volume:14000, ae:'Dave', pm:'Navia', am:'', pc:'', splits:{}},
+  {id:'r6', name:'Raymon Space', volume:0, ae:'Colin', pm:'Navia', am:'', pc:'', splits:{}},
+  {id:'r7', name:'Modeyso(Moon Rabbit', volume:0, ae:'Justin', pm:'Navia', am:'', pc:'', splits:{}},
+  {id:'s1', name:'Structure Therapeutics', volume:104000, ae:'Dave', pm:'Sam', am:'', pc:'', splits:{}},
+  {id:'s2', name:'Axonics, Inc', volume:84000, ae:'Colin', pm:'Sam', am:'', pc:'', splits:{}},
+  {id:'s3', name:'Immedica Pharma', volume:36000, ae:'Justin', pm:'Sam', am:'', pc:'', splits:{}},
+  {id:'s4', name:'OCtAGON BMW', volume:0, ae:'Marc', pm:'Sam', am:'', pc:'', splits:{}},
+  {id:'s5', name:'EverEx', volume:0, ae:'Colin', pm:'Sam', am:'', pc:'', splits:{}},
+  {id:'t1', name:'LUMANITY/CELLO HEALTH/MEDERGY', volume:85000, ae:'Justin', pm:'Roy', am:'', pc:'', splits:{}},
+  {id:'t2', name:'DRONE DEPLOY', volume:9000, ae:'Roy', pm:'Roy', am:'', pc:'', splits:{}},
+  {id:'t3', name:'NEOGRAF SOLUTIONS, LLC', volume:5000, ae:'Roy', pm:'Roy', am:'', pc:'', splits:{}},
+  {id:'t4', name:'AUTOBOOKS', volume:4000, ae:'Roy', pm:'Roy', am:'', pc:'', splits:{}},
+  {id:'t5', name:'POWER HOME REMODELING GROUP', volume:2000, ae:'Roy', pm:'Roy', am:'', pc:'', splits:{}},
+  {id:'t6', name:'Mantl', volume:0, ae:'Corin', pm:'Roy', am:'', pc:'', splits:{}},
+  {id:'t7', name:'XTRESS Therapy', volume:0, ae:'Roy', pm:'Roy', am:'', pc:'', splits:{}},
+  {id:'u1', name:'OCCAM HEALTH SERVICES', volume:43000, ae:'Tom', pm:'Corin', am:'', pc:'', splits:{}},
+  {id:'v1', name:'COCONUT SOFTWARE', volume:32000, ae:'Matt', pm:'Jim', am:'', pc:'', splits:{}},
+  {id:'w1', name:'Propeer', volume:0, ae:'Colin', pm:'Lisa T', am:'', pc:'', splits:{}},
+  {id:'x1', name:'ETE Marketing/Cisco', volume:0, ae:'Corin', pm:'Paul', am:'', pc:'', splits:{}},
+];
+
+let editingAcctId = null;
+let dragSrcId = null;
+let nextId = 9000;
+
+// ===== HELPERS =====
+function byRole(r) { return teamMembers.filter(m=>m.role===r).map(m=>m.name); }
+function getAEs() { return byRole('AE'); }
+function getPMs() { return byRole('PM'); }
+function getAMs() { return byRole('AM'); }
+function getPCs() { return byRole('PC'); }
+function fmtVol(v) {
+  if (!v || v===0) return '$0';
+  if (v>=1000000) return '$'+(v/1000000).toFixed(2).replace(/\.?0+$/,'')+'M';
+  if (v>=1000) return '$'+Math.round(v/1000)+'K';
+  return '$'+v.toLocaleString();
+}
+function aeClass(ae) {
+  const m={Matt:'ae-Matt',Marc:'ae-Marc',Dave:'ae-Dave',Paul:'ae-Paul',Justin:'ae-Justin',Colin:'ae-Colin',Tom:'ae-Tom',Roy:'ae-Roy',Garrett:'ae-Garrett',Corin:'ae-Corin'};
+  return m[ae]||'ae-other';
+}
+function getInitials(n) { return (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+function getTotalVol() { return accounts.reduce((s,a)=>s+a.volume,0); }
+function pmVol(pm) { return accounts.filter(a=>a.pm===pm).reduce((s,a)=>s+a.volume,0); }
+function amVol(am) { return accounts.filter(a=>a.am===am).reduce((s,a)=>s+getVolForRole(a,'AM:'+am),0); }
+function pcVol(pc) { return accounts.filter(a=>a.pc===pc).reduce((s,a)=>s+getVolForRole(a,'PC:'+pc),0); }
+function getNonAERoles(a) {
+  const r=[];
+  if (a.pm) r.push('PM:'+a.pm);
+  if (a.am) r.push('AM:'+a.am);
+  if (a.pc) r.push('PC:'+a.pc);
+  return r;
+}
+function getVolForRole(a, roleKey) {
+  const roles = getNonAERoles(a);
+  if (roles.length===0) return 0;
+  if (roles.length===1) return a.volume;
+  const splits = a.splits||{};
+  const pct = splits[roleKey]!==undefined ? splits[roleKey] : Math.round(100/roles.length);
+  return a.volume*pct/100;
+}
+function teamVolume(team) {
+  // Sum volume of accounts whose PM is the team's PM
+  return accounts.filter(a=>a.pm===team.pm).reduce((s,a)=>s+a.volume,0);
+}
+function buildSelect(opts, selected, includeNone=false) {
+  let h = includeNone ? '<option value="">— None —</option>' : '';
+  opts.forEach(o => { h += `<option value="${o}" ${o===selected?'selected':''}>${o}</option>`; });
+  return h;
+}
+
+// ===== HEADER =====
+function updateHeader() {
+  document.getElementById('hdr-pms').textContent = getPMs().length;
+  document.getElementById('hdr-accts').textContent = accounts.length;
+  document.getElementById('hdr-vol').textContent = fmtVol(getTotalVol());
+}
+
+// ===== DASHBOARD =====
+function renderDashboard() {
+  const total = getTotalVol();
+  const pms = getPMs();
+  document.getElementById('summary-stats').innerHTML = `
+    <div class="stat-box"><div class="stat-val">${pms.length}</div><div class="stat-lbl">Project Managers</div></div>
+    <div class="stat-box"><div class="stat-val">${accounts.length}</div><div class="stat-lbl">Active Accounts</div></div>
+    <div class="stat-box"><div class="stat-val">${fmtVol(total)}</div><div class="stat-lbl">Total Volume</div></div>
+    <div class="stat-box"><div class="stat-val">${fmtVol(pms.length?total/pms.length:0)}</div><div class="stat-lbl">Avg per PM</div></div>
+  `;
+
+  // PM Volume
+  const pmData = pms.map(p=>({name:p,vol:pmVol(p)})).sort((a,b)=>b.vol-a.vol);
+  const maxPM = pmData[0]?.vol||1;
+  document.getElementById('pm-vol-list').innerHTML = pmData.map(d=>`
+    <div style="margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+        <span style="color:#ccc">${d.name}</span><span style="color:#34d399;font-weight:600">${fmtVol(d.vol)}</span>
+      </div>
+      <div style="background:#1e2535;border-radius:4px;height:6px">
+        <div style="background:#10b981;border-radius:4px;height:6px;width:${Math.max(2,d.vol/maxPM*100)}%"></div>
+      </div>
+    </div>`).join('');
+
+  // AM Volume
+  const amData = getAMs().map(p=>({name:p,vol:amVol(p)})).sort((a,b)=>b.vol-a.vol);
+  const maxAM = amData[0]?.vol||1;
+  document.getElementById('am-vol-list').innerHTML = amData.length ? amData.map(d=>`
+    <div style="margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+        <span style="color:#ccc">${d.name}</span><span style="color:#60a5fa;font-weight:600">${fmtVol(d.vol)}</span>
+      </div>
+      <div style="background:#1e2535;border-radius:4px;height:6px">
+        <div style="background:#2563eb;border-radius:4px;height:6px;width:${Math.max(2,d.vol/maxAM*100)}%"></div>
+      </div>
+    </div>`).join('') : '<div style="color:#555;font-size:12px;padding:10px">No AMs assigned to accounts yet.</div>';
+
+  // PC Volume
+  const pcData = getPCs().map(p=>({name:p,vol:pcVol(p)})).sort((a,b)=>b.vol-a.vol);
+  const maxPC = pcData[0]?.vol||1;
+  document.getElementById('pc-vol-list').innerHTML = pcData.length ? pcData.map(d=>`
+    <div style="margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+        <span style="color:#ccc">${d.name}</span><span style="color:#a78bfa;font-weight:600">${fmtVol(d.vol)}</span>
+      </div>
+      <div style="background:#1e2535;border-radius:4px;height:6px">
+        <div style="background:#8b5cf6;border-radius:4px;height:6px;width:${Math.max(2,d.vol/maxPC*100)}%"></div>
+      </div>
+    </div>`).join('') : '<div style="color:#555;font-size:12px;padding:10px">No PCs assigned to accounts yet.</div>';
+}
+
+// ===== ACCOUNTS =====
+function renderAccounts() {
+  const aes = getAEs(); const pms = getPMs();
+  ['new-acct-ae'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(aes,''); });
+  ['new-acct-pm'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(pms,''); });
+  const maxVol = Math.max(...accounts.map(a=>a.volume),1);
+  document.getElementById('accounts-table-wrap').innerHTML = `
+    <table class="acct-table">
+      <thead><tr>
+        <th style="width:28px"></th>
+        <th>Account</th><th>Volume</th><th>AE</th><th>PM</th><th>AM / PC</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+        ${accounts.map(a=>{
+          const extra = [a.am?'AM:'+a.am:'', a.pc?'PC:'+a.pc:''].filter(Boolean);
+          const roles = getNonAERoles(a);
+          const showSplit = roles.length>1;
+          return `<tr draggable="true" data-id="${a.id}" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="drop(event)" ondragleave="dragLeave(event)">
+            <td><span class="drag-handle">⠿</span></td>
+            <td style="font-size:12px;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name}">${a.name}</td>
+            <td>
+              <div class="vol-bar-wrap">
+                <div class="vol-bar" style="width:${Math.max(3,a.volume/maxVol*70)}px;background:${a.volume===0?'#2a2f3e':'#2563eb'}"></div>
+                <span class="vol-text" style="cursor:pointer" onclick="inlineEditVol('${a.id}',this)">${fmtVol(a.volume)}</span>
+              </div>
+            </td>
+            <td><span class="team-avatar ${aeClass(a.ae)}" style="width:22px;height:22px;font-size:9px" title="${a.ae}">${getInitials(a.ae)}</span></td>
+            <td style="font-size:12px;color:#ccc">${a.pm}</td>
+            <td>${extra.map(e=>`<span class="badge badge-purple" style="font-size:9px;margin-right:2px">${e}</span>`).join('')}${showSplit?`<span class="split-tag" onclick="openEditModal('${a.id}')">split</span>`:''}</td>
+            <td><button class="btn btn-ghost btn-sm" onclick="openEditModal('${a.id}')">Edit</button></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>`;
+}
+
+// ===== PM CARDS =====
+function renderPMs() {
+  const pms = getPMs();
+  document.getElementById('pm-grid').innerHTML = pms.map(pm=>{
+    const pa = accounts.filter(a=>a.pm===pm).sort((a,b)=>b.volume-a.volume);
+    const total = pa.reduce((s,a)=>s+a.volume,0);
+    const top = pa[0];
+    const maxV = pa[0]?.volume||1;
+    return `<div class="card">
+      <div class="pm-name-row">
+        <div>
+          <div class="card-title" style="font-size:15px">${pm}</div>
+          <div class="pm-meta">${pa.length} accounts</div>
+        </div>
+        <div class="pm-volume">${fmtVol(total)}</div>
+      </div>
+      ${top?`<div class="pm-meta" style="margin-bottom:8px">⭐ Top: ${top.name} (${fmtVol(top.volume)})</div>`:''}
+      <div style="max-height:260px;overflow-y:auto">
+        <table class="acct-table">
+          <thead><tr><th>Account</th><th>Volume</th><th>AE</th><th></th></tr></thead>
+          <tbody>
+            ${pa.map(a=>{
+              const roles=getNonAERoles(a);
+              const myVol=getVolForRole(a,'PM:'+pm);
+              const showSplit=roles.length>1;
+              return `<tr>
+                <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name}">${a.name}</td>
+                <td>
+                  <div class="vol-bar-wrap">
+                    <div class="vol-bar" style="width:${Math.max(2,a.volume/maxV*45)}px;background:${a.volume===0?'#2a2f3e':'#2563eb'}"></div>
+                    <span style="font-size:11px;color:#60a5fa">${fmtVol(a.volume)}</span>
+                    ${showSplit?`<span style="font-size:10px;color:#a78bfa">(${fmtVol(myVol)})</span>`:''}
+                  </div>
+                </td>
+                <td><span class="team-avatar ${aeClass(a.ae)}" style="width:18px;height:18px;font-size:8px">${getInitials(a.ae)}</span></td>
+                <td><button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:10px" onclick="openEditModal('${a.id}')">Edit</button></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== TEAMS TAB =====
+function renderTeams() {
+  const aes=getAEs(), ams=getAMs(), pms=getPMs(), pcs=getPCs();
+  // Team cards
+  document.getElementById('teams-grid').innerHTML = teams.map(t=>`
+    <div class="team-card">
+      <div class="team-card-header">
+        <input class="team-name-input" value="${t.name}" onchange="updateTeamName('${t.id}',this.value)" title="Click to rename">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge badge-blue">${fmtVol(teamVolume(t))}</span>
+          <button class="btn btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="removeTeam('${t.id}')">Remove</button>
+        </div>
+      </div>
+      <div class="team-roles-grid">
+        <div class="team-role-slot">
+          <div>
+            <div class="team-role-label" style="color:#fbbf24">AE</div>
+            <div style="font-size:9px;color:#666;margin-bottom:4px">Account Executive</div>
+            <select class="team-role-select" onchange="updateTeamRole('${t.id}','ae',this.value)">
+              ${buildSelect(aes, t.ae, true)}
+            </select>
+          </div>
+        </div>
+        <div class="team-role-slot">
+          <div>
+            <div class="team-role-label" style="color:#60a5fa">AM</div>
+            <div style="font-size:9px;color:#666;margin-bottom:4px">Account Manager</div>
+            <select class="team-role-select" onchange="updateTeamRole('${t.id}','am',this.value)">
+              ${buildSelect(ams, t.am, true)}
+            </select>
+          </div>
+        </div>
+        <div class="team-role-slot">
+          <div>
+            <div class="team-role-label" style="color:#34d399">PM</div>
+            <div style="font-size:9px;color:#666;margin-bottom:4px">Project Manager</div>
+            <select class="team-role-select" onchange="updateTeamRole('${t.id}','pm',this.value)">
+              ${buildSelect(pms, t.pm, true)}
+            </select>
+          </div>
+        </div>
+        <div class="team-role-slot">
+          <div>
+            <div class="team-role-label" style="color:#a78bfa">PC</div>
+            <div style="font-size:9px;color:#666;margin-bottom:4px">Project Coordinator</div>
+            <select class="team-role-select" onchange="updateTeamRole('${t.id}','pc',this.value)">
+              ${buildSelect(pcs, t.pc, true)}
+            </select>
+          </div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:4px">
+        ${t.pm ? accounts.filter(a=>a.pm===t.pm).length+' accounts under '+t.pm : 'No PM assigned'}
+      </div>
+    </div>
+  `).join('');
+
+  // Full Roster
+  const roles = ['AE','AM','PM','PC'];
+  document.getElementById('team-member-list').innerHTML = roles.map(r=>{
+    const members = teamMembers.filter(m=>m.role===r);
+    return `<div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:${r==='AE'?'#fbbf24':r==='AM'?'#60a5fa':r==='PM'?'#34d399':'#a78bfa'};margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">
+        ${r} — ${r==='AE'?'Account Executives':r==='AM'?'Account Managers':r==='PM'?'Project Managers':'Project Coordinators'} (${members.length})
+      </div>
+      <div class="team-member-list">
+        ${members.map(m=>{
+          const vol = r==='PM' ? fmtVol(pmVol(m.name)) : r==='AM' ? fmtVol(amVol(m.name)) : r==='PC' ? fmtVol(pcVol(m.name)) : '';
+          const cnt = r==='PM' ? accounts.filter(a=>a.pm===m.name).length : r==='AE' ? accounts.filter(a=>a.ae===m.name).length : '';
+          return `<div class="team-member-item">
+            <div class="team-avatar ${aeClass(m.name)}" style="width:30px;height:30px;font-size:11px">${getInitials(m.name)}</div>
+            <div style="flex:1">
+              <div style="font-size:13px;color:#fff;font-weight:600">${m.name}</div>
+              ${vol||cnt ? `<div style="font-size:11px;color:#888">${cnt!==''?cnt+' accounts · ':''}${vol}</div>` : ''}
+            </div>
+            <span class="badge role-${r}">${r}</span>
+            <button class="btn btn-danger btn-sm" style="padding:2px 8px;font-size:10px" onclick="removeMember('${m.id}')">Remove</button>
+          </div>`;
+        }).join('')}
+        ${members.length===0?'<div style="color:#555;font-size:12px;padding:8px 12px">No members yet.</div>':''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ===== VOLUME BY TEAM TAB =====
+function renderTeamVol() {
+  const totalVol = getTotalVol();
+  const teamsWithVol = teams.map(t=>({...t, vol: teamVolume(t)})).sort((a,b)=>b.vol-a.vol);
+  const assignedVol = teamsWithVol.reduce((s,t)=>s+t.vol,0);
+  const unassigned = totalVol - assignedVol;
+
+  document.getElementById('teamvol-stats').innerHTML = `
+    <div class="stat-box"><div class="stat-val">${teams.length}</div><div class="stat-lbl">Teams</div></div>
+    <div class="stat-box"><div class="stat-val">${fmtVol(totalVol)}</div><div class="stat-lbl">Total Volume</div></div>
+    <div class="stat-box"><div class="stat-val">${fmtVol(assignedVol)}</div><div class="stat-lbl">Assigned to Teams</div></div>
+    <div class="stat-box"><div class="stat-val">${fmtVol(Math.max(0,unassigned))}</div><div class="stat-lbl">Unassigned</div></div>
+  `;
+
+  const maxTeamVol = teamsWithVol[0]?.vol||1;
+  const roleColors = {AE:'#fbbf24',AM:'#60a5fa',PM:'#34d399',PC:'#a78bfa'};
+
+  document.getElementById('teamvol-grid').innerHTML = teamsWithVol.map(t=>{
+    const teamAccts = t.pm ? accounts.filter(a=>a.pm===t.pm) : [];
+    const topAcct = teamAccts.sort((a,b)=>b.volume-a.volume)[0];
+    const members = [
+      {role:'AE', name: t.ae||'—'},
+      {role:'AM', name: t.am||'—'},
+      {role:'PM', name: t.pm||'—'},
+      {role:'PC', name: t.pc||'—'},
+    ];
+    return `<div class="team-vol-card">
+      <div class="team-vol-header">
+        <div>
+          <div class="team-vol-name">${t.name}</div>
+          <div style="font-size:11px;color:#888;margin-top:2px">${teamAccts.length} accounts${topAcct ? ' · Top: '+topAcct.name : ''}</div>
+        </div>
+        <div class="team-vol-total">${fmtVol(t.vol)}</div>
+      </div>
+      <div style="background:#1e2535;border-radius:4px;height:6px;margin-bottom:12px">
+        <div style="background:linear-gradient(90deg,#2563eb,#3b82f6);border-radius:4px;height:6px;width:${Math.max(2,t.vol/maxTeamVol*100)}%"></div>
+      </div>
+      <div class="team-vol-members">
+        ${members.map(m=>`
+          <div class="team-vol-member-pill">
+            <div class="team-avatar ${aeClass(m.name)}" style="width:20px;height:20px;font-size:8px">${getInitials(m.name)}</div>
+            <span style="color:${roleColors[m.role]};font-weight:700;font-size:10px">${m.role}</span>
+            <span style="color:#ccc">${m.name}</span>
+          </div>`).join('')}
+      </div>
+      ${teamAccts.length > 0 ? `
+      <div style="margin-top:8px;max-height:200px;overflow-y:auto">
+        <table class="acct-table">
+          <thead><tr><th>Account</th><th>Volume</th><th>AE</th></tr></thead>
+          <tbody>
+            ${teamAccts.map(a=>`<tr>
+              <td style="font-size:11px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name}">${a.name}</td>
+              <td><span style="font-size:11px;color:#60a5fa">${fmtVol(a.volume)}</span></td>
+              <td><span class="team-avatar ${aeClass(a.ae)}" style="width:18px;height:18px;font-size:8px">${getInitials(a.ae)}</span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : '<div style="font-size:12px;color:#555;padding:6px 0">No PM assigned — assign a PM in the Teams tab.</div>'}
+    </div>`;
+  }).join('');
+}
+
+// ===== MODAL =====
+function openEditModal(id) {
+  editingAcctId = id;
+  const a = accounts.find(x=>x.id===id); if (!a) return;
+  document.getElementById('modal-acct-title').textContent = 'Edit: ' + a.name;
+  document.getElementById('edit-acct-name').value = a.name;
+  document.getElementById('edit-acct-vol').value = a.volume;
+  document.getElementById('edit-acct-ae').innerHTML = buildSelect(getAEs(), a.ae);
+  document.getElementById('edit-acct-pm').innerHTML = buildSelect(getPMs(), a.pm);
+  document.getElementById('edit-acct-am').innerHTML = buildSelect(getAMs(), a.am, true);
+  document.getElementById('edit-acct-pc').innerHTML = buildSelect(getPCs(), a.pc, true);
+  // When AM or PC changes, re-render split
+  document.getElementById('edit-acct-am').onchange = () => renderSplitSection();
+  document.getElementById('edit-acct-pc').onchange = () => renderSplitSection();
+  renderSplitSection();
+  document.getElementById('modal-account').classList.add('open');
+}
+function getTempRoles() {
+  const pm = document.getElementById('edit-acct-pm')?.value;
+  const am = document.getElementById('edit-acct-am')?.value;
+  const pc = document.getElementById('edit-acct-pc')?.value;
+  const r = [];
+  if (pm) r.push('PM:'+pm);
+  if (am) r.push('AM:'+am);
+  if (pc) r.push('PC:'+pc);
+  return r;
+}
+function renderSplitSection() {
+  const a = accounts.find(x=>x.id===editingAcctId); if (!a) return;
+  const roles = getTempRoles();
+  const sec = document.getElementById('edit-split-section');
+  const pctDiv = document.getElementById('edit-split-pcts');
+  if (roles.length<=1) { sec.style.display='none'; return; }
+  sec.style.display = 'block';
+  const vol = parseInt(document.getElementById('edit-acct-vol').value)||a.volume;
+  const even = Math.round(100/roles.length);
+  pctDiv.innerHTML = roles.map((r,i)=>{
+    const val = a.splits[r]!==undefined ? a.splits[r] : even;
+    const label = r.split(':')[1]+' ('+r.split(':')[0]+')';
+    return `<div class="pct-row">
+      <span class="name">${label}</span>
+      <input type="range" min="0" max="100" value="${val}" id="sld-${i}" data-role="${r}" oninput="onSplitChange(${i},${roles.length},${vol})">
+      <span class="pct-val" id="sld-val-${i}">${val}%</span>
+      <span style="font-size:11px;color:#888;width:60px;text-align:right" id="sld-dollar-${i}">${fmtVol(vol*val/100)}</span>
+    </div>`;
+  }).join('');
+}
+function onSplitChange(idx, count, vol) {
+  const val = parseInt(document.getElementById('sld-'+idx).value);
+  document.getElementById('sld-val-'+idx).textContent = val+'%';
+  document.getElementById('sld-dollar-'+idx).textContent = fmtVol(vol*val/100);
+  const rest = 100-val;
+  const others = Array.from({length:count},(_,i)=>i).filter(i=>i!==idx);
+  const each = others.length>0 ? Math.round(rest/others.length) : 0;
+  others.forEach((i,j)=>{
+    const v = j===others.length-1 ? rest-each*(others.length-1) : each;
+    const el = document.getElementById('sld-'+i);
+    if (el) {
+      el.value = v;
+      document.getElementById('sld-val-'+i).textContent = v+'%';
+      document.getElementById('sld-dollar-'+i).textContent = fmtVol(vol*v/100);
+    }
+  });
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); editingAcctId=null; }
+function saveAccount() {
+  const a = accounts.find(x=>x.id===editingAcctId); if (!a) return;
+  a.name = document.getElementById('edit-acct-name').value;
+  a.volume = parseInt(document.getElementById('edit-acct-vol').value)||0;
+  a.ae = document.getElementById('edit-acct-ae').value;
+  a.pm = document.getElementById('edit-acct-pm').value;
+  a.am = document.getElementById('edit-acct-am').value;
+  a.pc = document.getElementById('edit-acct-pc').value;
+  const roles = getTempRoles();
+  roles.forEach((r,i)=>{ const el=document.getElementById('sld-'+i); if(el) a.splits[r]=parseInt(el.value); });
+  // Clear splits for removed roles
+  Object.keys(a.splits).forEach(k=>{ if(!roles.includes(k)) delete a.splits[k]; });
+  closeModal('modal-account');
+  refreshAll();
+}
+function deleteCurrentAccount() {
+  if (!editingAcctId) return;
+  if (!confirm('Delete this account?')) return;
+  accounts = accounts.filter(a=>a.id!==editingAcctId);
+  closeModal('modal-account'); refreshAll();
+}
+
+// ===== INLINE EDIT =====
+function inlineEditVol(id, el) {
+  const a = accounts.find(x=>x.id===id); if(!a) return;
+  const inp = document.createElement('input');
+  inp.type='number'; inp.value=a.volume; inp.style.width='85px'; inp.style.fontSize='11px';
+  el.replaceWith(inp); inp.focus();
+  inp.onblur = ()=>{ a.volume=parseInt(inp.value)||0; refreshAll(); };
+  inp.onkeydown = e=>{ if(e.key==='Enter') inp.blur(); if(e.key==='Escape') refreshAll(); };
+}
+
+// ===== DRAG & DROP =====
+function dragStart(e) { dragSrcId=e.currentTarget.dataset.id; }
+function dragOver(e) { e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
+function dragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+function drop(e) {
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  const tgtId = e.currentTarget.dataset.id;
+  if (!dragSrcId||dragSrcId===tgtId) return;
+  const src=accounts.find(a=>a.id===dragSrcId), tgt=accounts.find(a=>a.id===tgtId);
+  if(!src||!tgt) return;
+  const tmp=src.pm; src.pm=tgt.pm; tgt.pm=tmp;
+  dragSrcId=null; refreshAll();
+}
+
+// ===== ADD / REMOVE =====
+function addAccount() {
+  const name=document.getElementById('new-acct-name').value.trim();
+  if(!name) return alert('Please enter an account name.');
+  accounts.push({id:'x'+nextId++, name, volume:parseInt(document.getElementById('new-acct-vol').value)||0,
+    ae:document.getElementById('new-acct-ae').value, pm:document.getElementById('new-acct-pm').value,
+    am:'', pc:'', splits:{}});
+  document.getElementById('new-acct-name').value='';
+  document.getElementById('new-acct-vol').value='';
+  refreshAll();
+}
+function addTeamMember() {
+  const name=document.getElementById('new-member-name').value.trim();
+  if(!name) return alert('Please enter a name.');
+  const role=document.getElementById('new-member-role').value;
+  teamMembers.push({id:'tm'+nextId++, name, role});
+  document.getElementById('new-member-name').value='';
+  refreshAll();
+}
+function removeMember(id) {
+  if(!confirm('Remove this team member?')) return;
+  teamMembers = teamMembers.filter(m=>m.id!==id);
+  refreshAll();
+}
+function addTeam() {
+  teams.push({id:'team-'+nextId++, name:'New Team', ae:'', am:'', pm:'', pc:''});
+  refreshAll();
+}
+function removeTeam(id) {
+  if(!confirm('Remove this team?')) return;
+  teams = teams.filter(t=>t.id!==id); refreshAll();
+}
+function updateTeamName(id, val) {
+  const t=teams.find(x=>x.id===id); if(t) t.name=val; refreshAll();
+}
+function updateTeamRole(id, role, val) {
+  const t=teams.find(x=>x.id===id); if(t) t[role]=val; refreshAll();
+}
+
+// ===== TABS =====
+function showTab(tab, el) {
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('panel-'+tab).classList.add('active');
+}
+
+// ===== REFRESH =====
+function refreshAll() {
+  updateHeader();
+  renderDashboard();
+  renderAccounts();
+  renderPMs();
+  renderTeams();
+  renderTeamVol();
+}
+
+// Every refresh (i.e. every user change) schedules a cloud save
+const _origRefreshAll = refreshAll;
+refreshAll = function() { _origRefreshAll(); scheduleCloudSave(); };
+
+document.getElementById('modal-account').addEventListener('click',function(e){ if(e.target===this) closeModal('modal-account'); });
+
+// ===== CLOUD SYNC (Firestore) =====
+let cloudReady = false, applyingRemote = false, saveTimer = null;
+const db = FIREBASE_ENABLED ? firebase.firestore() : null;
+
+function setSyncStatus(msg){ const el = document.getElementById('sync-status'); if(el) el.textContent = msg; }
+
+function serializeState(){ return { teamMembers, teams, accounts, nextId }; }
+
+function applyState(d){
+  applyingRemote = true;
+  try {
+    if (Array.isArray(d.teamMembers)) teamMembers = d.teamMembers;
+    if (Array.isArray(d.teams))       teams       = d.teams;
+    if (Array.isArray(d.accounts))    accounts    = d.accounts;
+    if (typeof d.nextId === 'number') nextId      = d.nextId;
+  } finally { applyingRemote = false; }
+}
+
+function scheduleCloudSave(){
+  if (!FIREBASE_ENABLED || !cloudReady || applyingRemote) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function(){
+    db.collection('app').doc('state').set(serializeState())
+      .then(function(){ setSyncStatus('\u2601\uFE0F Saved to cloud'); })
+      .catch(function(err){ console.error('Cloud save failed:', err); setSyncStatus('\u26A0\uFE0F Save failed'); });
+  }, 600);
+}
+
+async function initCloud(){
+  // Sync status badge (fixed, bottom-right)
+  const badge = document.createElement('div');
+  badge.id = 'sync-status';
+  badge.style.cssText = 'position:fixed;bottom:12px;right:12px;background:#1e293b;color:#94a3b8;padding:6px 12px;border-radius:20px;font-size:12px;font-family:sans-serif;z-index:9999;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+  badge.textContent = '\u23F3 Connecting\u2026';
+  document.body.appendChild(badge);
+
+  if (!FIREBASE_ENABLED){ setSyncStatus('\uD83D\uDCBE Local only'); refreshAll(); return; }
+  try {
+    const ref = db.collection('app').doc('state');
+    const snap = await ref.get();
+    if (snap.exists){
+      applyState(snap.data());
+      setSyncStatus('\u2601\uFE0F Loaded from cloud');
+    } else {
+      await ref.set(serializeState());
+      setSyncStatus('\u2601\uFE0F Cloud initialized');
+    }
+    cloudReady = true;
+    refreshAll();
+    // Real-time updates: when another device changes data, apply it here
+    ref.onSnapshot(function(s){
+      if (!s.exists) return;
+      const d = s.data();
+      const remote = JSON.stringify([d.teamMembers, d.teams, d.accounts, d.nextId]);
+      const local  = JSON.stringify([teamMembers, teams, accounts, nextId]);
+      if (remote !== local){
+        applyState(d);
+        refreshAll();
+        setSyncStatus('\u2601\uFE0F Updated from cloud');
+      }
+    });
+  } catch(err){
+    console.error('Cloud init failed:', err);
+    setSyncStatus('\u26A0\uFE0F Cloud offline \u2014 local mode');
+    refreshAll();
+  }
+}
+initCloud();
+</script>
+</body>
+</html>
