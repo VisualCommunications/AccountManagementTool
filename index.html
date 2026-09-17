@@ -147,9 +147,47 @@
     .grid-2 { grid-template-columns: 1fr; }
     .team-roles-grid { grid-template-columns: 1fr; }
   }
+/* ===== LOGIN GATE ===== */
+#login-overlay{position:fixed;inset:0;background:#0f1420;display:flex;align-items:center;justify-content:center;z-index:100000}
+.login-box{background:#1a2130;border:1px solid #2a3348;border-radius:14px;padding:34px 30px;width:340px;box-shadow:0 20px 60px rgba(0,0,0,.5);text-align:center}
+.login-box h1{font-size:19px;margin:0 0 6px;color:#e2e8f0}
+.login-box p{font-size:12px;color:#7c8aa5;margin:0 0 22px}
+.login-box input{width:100%;box-sizing:border-box;padding:11px 13px;border-radius:8px;border:1px solid #2a3348;background:#0f1420;color:#e2e8f0;font-size:14px;margin-bottom:12px;outline:none}
+.login-box input:focus{border-color:#2563eb}
+.login-box button{width:100%;padding:11px;border-radius:8px;border:none;background:#2563eb;color:#fff;font-size:14px;font-weight:600;cursor:pointer}
+.login-box button:hover{background:#1d4ed8}
+.login-err{color:#f87171;font-size:12px;min-height:16px;margin-bottom:8px}
+#btn-logout{position:fixed;top:14px;right:16px;z-index:9998;background:#1a2130;border:1px solid #2a3348;color:#94a3b8;padding:5px 12px;border-radius:8px;font-size:11px;cursor:pointer}
+#btn-logout:hover{color:#e2e8f0;border-color:#3b4a68}
+#btn-changepw{position:fixed;top:14px;right:92px;z-index:9998;background:#1a2130;border:1px solid #2a3348;color:#94a3b8;padding:5px 12px;border-radius:8px;font-size:11px;cursor:pointer}
+#btn-changepw:hover{color:#e2e8f0;border-color:#3b4a68}
 </style>
 </head>
 <body>
+<!-- ===== LOGIN GATE ===== -->
+<div id="login-overlay">
+  <div class="login-box">
+    <h1>Account Management Tool</h1>
+    <p>Enter password to continue</p>
+    <input type="password" id="login-pw" placeholder="Password" autocomplete="current-password">
+    <div class="login-err" id="login-err"></div>
+    <button onclick="tryLogin()">Unlock</button>
+  </div>
+</div>
+<button id="btn-changepw" style="display:none" onclick="openChangePw()">Change Password</button>
+<button id="btn-logout" style="display:none" onclick="doLogout()">Lock</button>
+<div id="changepw-overlay" style="position:fixed;inset:0;background:rgba(10,14,22,.8);z-index:100001;display:none;align-items:center;justify-content:center">
+  <div class="login-box">
+    <h1>Change Password</h1>
+    <p>Set a new password for this tool</p>
+    <input type="password" id="cpw-old" placeholder="Current password">
+    <input type="password" id="cpw-new" placeholder="New password">
+    <input type="password" id="cpw-confirm" placeholder="Confirm new password">
+    <div class="login-err" id="cpw-err"></div>
+    <button onclick="doChangePw()">Save New Password</button>
+    <button style="background:none;border:1px solid #2a3348;color:#94a3b8;margin-top:8px" onclick="closeChangePw()">Cancel</button>
+  </div>
+</div>
 
 <div class="header">
   <h1>Project <span>Management</span> — Account Management Tool</h1>
@@ -197,6 +235,8 @@
       <div class="form-group"><label>Volume ($)</label><input id="new-acct-vol" type="number" placeholder="0" style="width:110px"></div>
       <div class="form-group"><label>AE</label><select id="new-acct-ae"></select></div>
       <div class="form-group"><label>Assign to PM</label><select id="new-acct-pm"></select></div>
+      <div class="form-group"><label>AM</label><select id="new-acct-am"></select></div>
+      <div class="form-group"><label>PC</label><select id="new-acct-pc"></select></div>
       <div class="form-group"><label>&nbsp;</label><button class="btn btn-primary btn-sm" onclick="addAccount()">+ Add Account</button></div>
     </div>
   </div>
@@ -273,6 +313,79 @@
 </div>
 
 <script>
+// ===== PASSWORD GATE =====
+// Password is stored SHA-256 hashed in Firestore (app/auth doc) so it works on every device.
+// Default password on first run: "visualcomms" — change it with the Change Password button.
+let sessionUnlocked = false;
+
+async function sha256(str){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function showApp(){
+  document.getElementById('login-overlay').style.display='none';
+  document.getElementById('btn-logout').style.display='block';
+  document.getElementById('btn-changepw').style.display='block';
+  sessionUnlocked = true;
+  refreshAll();
+}
+function hideApp(){
+  document.getElementById('login-overlay').style.display='flex';
+  document.getElementById('btn-logout').style.display='none';
+  document.getElementById('btn-changepw').style.display='none';
+  sessionUnlocked = false;
+  document.getElementById('login-pw').value='';
+  document.getElementById('login-err').textContent='';
+}
+async function getPwHash(){
+  if (!FIREBASE_ENABLED || !db) return await sha256('visualcomms');
+  const snap = await db.collection('app').doc('auth').get();
+  if (snap.exists && snap.data().pwHash) return snap.data().pwHash;
+  // First run: seed with default password hash
+  const defHash = await sha256('visualcomms');
+  await db.collection('app').doc('auth').set({pwHash: defHash});
+  return defHash;
+}
+async function tryLogin(){
+  const pw = document.getElementById('login-pw').value;
+  const err = document.getElementById('login-err');
+  err.textContent = 'Checking...';
+  try {
+    const stored = await getPwHash();
+    if (await sha256(pw) === stored){ showApp(); }
+    else { err.textContent = 'Incorrect password'; document.getElementById('login-pw').value=''; }
+  } catch(e){
+    err.textContent = 'Cannot reach login server (Firestore). Try again.';
+  }
+}
+function openChangePw(){ document.getElementById('changepw-overlay').style.display='flex'; }
+function closeChangePw(){
+  document.getElementById('changepw-overlay').style.display='none';
+  ['cpw-old','cpw-new','cpw-confirm'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cpw-err').textContent='';
+}
+async function doChangePw(){
+  const oldPw = document.getElementById('cpw-old').value;
+  const newPw = document.getElementById('cpw-new').value;
+  const confirmPw = document.getElementById('cpw-confirm').value;
+  const err = document.getElementById('cpw-err');
+  if (newPw.length < 4){ err.textContent='New password must be at least 4 characters'; return; }
+  if (newPw !== confirmPw){ err.textContent='New passwords do not match'; return; }
+  err.textContent = 'Checking...';
+  try {
+    const stored = await getPwHash();
+    if (await sha256(oldPw) !== stored){ err.textContent='Current password is incorrect'; return; }
+    const newHash = await sha256(newPw);
+    await db.collection('app').doc('auth').set({pwHash: newHash});
+    closeChangePw();
+    alert('Password updated. It applies to everyone on their next visit.');
+  } catch(e){
+    err.textContent = 'Cannot reach login server (Firestore). Try again.';
+  }
+}
+function doLogout(){ hideApp(); }
+document.getElementById('login-pw').addEventListener('keydown', e=>{ if(e.key==='Enter') tryLogin(); });
+
 // ===== DATA =====
 let teamMembers = [
   {id:'ae-matt', name:'Matt', role:'AE'},
@@ -285,16 +398,16 @@ let teamMembers = [
   {id:'ae-roy', name:'Roy', role:'AE'},
   {id:'ae-garrett', name:'Garrett', role:'AE'},
   {id:'ae-corin', name:'Corin', role:'AE'},
-  {id:'pm-erin', name:'Erin', role:'PM'},
-  {id:'pm-peer', name:'Peer', role:'PM'},
-  {id:'pm-anthony', name:'Anthony', role:'PM'},
-  {id:'pm-jack', name:'Jack', role:'PM'},
+  {id:'am-erin', name:'Erin', role:'AM'},
+  {id:'am-peer', name:'Peer', role:'AM'},
+  {id:'am-anthony', name:'Anthony', role:'AM'},
+  {id:'am-jack', name:'Jack', role:'AM'},
   {id:'pm-mattg', name:'Matt G', role:'PM'},
   {id:'pm-mallick', name:'Mallick', role:'PM'},
-  {id:'pm-damon', name:'Damon', role:'PM'},
-  {id:'pm-scott', name:'Scott', role:'PM'},
+  {id:'am-damon', name:'Damon', role:'AM'},
+  {id:'am-scott', name:'Scott', role:'AM'},
   {id:'pm-alex', name:'Alex', role:'PM'},
-  {id:'pm-connie', name:'Connie', role:'PM'},
+  {id:'am-connie', name:'Connie', role:'AM'},
   {id:'pm-lisa', name:'Lisa', role:'PM'},
   {id:'pm-mitch', name:'Mitch', role:'PM'},
   {id:'pm-katie', name:'Katie', role:'PM'},
@@ -312,68 +425,68 @@ let teamMembers = [
 ];
 
 let teams = [
-  { id:'team-1', name:'Team Alpha',   ae:'Matt',    am:'', pm:'Erin',    pc:'' },
-  { id:'team-2', name:'Team Bravo',   ae:'Marc',    am:'', pm:'Peer',    pc:'' },
-  { id:'team-3', name:'Team Charlie', ae:'Dave',    am:'', pm:'Anthony', pc:'' },
-  { id:'team-4', name:'Team Delta',   ae:'Tom',     am:'', pm:'Jack',    pc:'' },
+  { id:'team-1', name:'Team Alpha',   ae:'Matt',    am:'Erin',    pm:'', pc:'' },
+  { id:'team-2', name:'Team Bravo',   ae:'Marc',    am:'Peer',    pm:'', pc:'' },
+  { id:'team-3', name:'Team Charlie', ae:'Dave',    am:'Anthony', pm:'', pc:'' },
+  { id:'team-4', name:'Team Delta',   ae:'Tom',     am:'Jack',    pm:'', pc:'' },
   { id:'team-5', name:'Team Echo',    ae:'Dave',    am:'', pm:'Matt G',  pc:'' },
   { id:'team-6', name:'Team Foxtrot', ae:'Justin',  am:'', pm:'Lisa',    pc:'' },
 ];
 
 let accounts = [
-  {id:'a1', name:'AXON', volume:4600000, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'a2', name:'OCTAGON BOA', volume:2200000, ae:'Marc', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'a3', name:'HANWHA VISION', volume:1800000, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'a4', name:'Blockskye', volume:190000, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'a5', name:'HALL RESEARCH TECHNOLOGIES,LLC', volume:69000, ae:'Dave', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'a6', name:'OCTAGON COMCAST BUSINESS', volume:0, ae:'Marc', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'a7', name:'Gropen', volume:0, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'a8', name:'HK Design', volume:0, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'a9', name:'Brinc', volume:0, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'a10', name:'GateKeeper Systems', volume:0, ae:'Matt', pm:'Erin', am:'', pc:'', splits:{}},
-  {id:'b1', name:'HUBBELL POWER SYSTEMS, INC', volume:4500000, ae:'Marc', pm:'Peer', am:'', pc:'', splits:{}},
-  {id:'b2', name:'BAUSCH HEALTH US, LLC.', volume:1300000, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
-  {id:'b3', name:'HARMONY BIOSCIENCES, LLC', volume:452000, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
-  {id:'b4', name:'TRIS THERAPEUTICS, LLC', volume:246000, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
-  {id:'b5', name:'MITSUBISHI TANABE PHARMA AMERI', volume:213000, ae:'Justin', pm:'Peer', am:'', pc:'', splits:{}},
-  {id:'b6', name:'AVANTIK', volume:156000, ae:'Corin', pm:'Peer', am:'', pc:'', splits:{}},
-  {id:'b7', name:'AES CLEAN TECHNOLOGY, INC.', volume:146000, ae:'Colin', pm:'Peer', am:'', pc:'', splits:{}},
-  {id:'b8', name:'ALASTIN SKINCARE', volume:2000, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
-  {id:'b9', name:'SKINBETTER SCIENCE', volume:0, ae:'Paul', pm:'Peer', am:'', pc:'', splits:{}},
-  {id:'c1', name:'Incyte', volume:2000000, ae:'Justin', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c2', name:'ENDO PHARMACEUTICALS, INC', volume:1200000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c3', name:'WEST PHARMACEUTICAL SERVICES', volume:634000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c4', name:'CIVCO RADIOTHERAPY (QFIX - CQ)', volume:538000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c5', name:'DSM BIOMEDICAL', volume:490000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c6', name:'ALMIRALL PHARMACEUTICALS', volume:322000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c7', name:'ALMIRALL', volume:306000, ae:'Justin', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c8', name:'MITSUBISHI CHEMICAL (QUADRANT)', volume:265000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c9', name:'WRG LIVE', volume:258000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c10', name:'ZYVET', volume:233000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c11', name:"TOSHIBA INT'L (MACHINERY)", volume:179000, ae:'Paul', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c12', name:'ZYDUS PHARMACEUTICALS', volume:108000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c13', name:'SAINT-GOBAIN PERFORMANCE PLAST', volume:75000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c14', name:'EPIONCE', volume:56000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c15', name:'SAINT-GOBAIN CORPORATION', volume:48000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c16', name:'Strata Skin Sciences', volume:29000, ae:'Dave', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'c17', name:'Incyte Oncology', volume:0, ae:'Justin', pm:'Anthony', am:'', pc:'', splits:{}},
-  {id:'d1', name:'PharmaEssentia USA Corporation', volume:1400000, ae:'Colin', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d2', name:'EVENT STRATEGY GROUP', volume:1300000, ae:'Tom', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d3', name:'CANTALOUPE, INC.', volume:514000, ae:'Matt', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d4', name:'RHYTHM TX', volume:450000, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d5', name:'ALMAC GROUP - ALMAC HOUSE', volume:362000, ae:'Matt', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d6', name:'Kahua', volume:350000, ae:'Matt', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d7', name:'IRIDIUM', volume:337000, ae:'Marc', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d8', name:'WILKINS MEDIA', volume:286000, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d9', name:'ABBOTT VASCULAR', volume:261000, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d10', name:'PROJECT VELOCITY, INC.', volume:261000, ae:'Colin', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d11', name:'CDL NUCLEAR', volume:215000, ae:'Colin', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d12', name:'WANZL', volume:112000, ae:'Matt', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d13', name:'ABBOTT DIABETES CARE', volume:105000, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d14', name:'CC FORD GROUP', volume:63000, ae:'Justin', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d15', name:'SHOW SOURCE', volume:35000, ae:'Tom', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d16', name:'LEO', volume:0, ae:'Dave', pm:'Jack', am:'', pc:'', splits:{}},
-  {id:'d17', name:'Return Pro', volume:0, ae:'Colin', pm:'Jack', am:'', pc:'', splits:{}},
+  {id:'a1', name:'AXON', volume:4600000, ae:'Matt', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'a2', name:'OCTAGON BOA', volume:2200000, ae:'Marc', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'a3', name:'HANWHA VISION', volume:1800000, ae:'Matt', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'a4', name:'Blockskye', volume:190000, ae:'Matt', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'a5', name:'HALL RESEARCH TECHNOLOGIES,LLC', volume:69000, ae:'Dave', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'a6', name:'OCTAGON COMCAST BUSINESS', volume:0, ae:'Marc', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'a7', name:'Gropen', volume:0, ae:'Matt', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'a8', name:'HK Design', volume:0, ae:'Matt', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'a9', name:'Brinc', volume:0, ae:'Matt', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'a10', name:'GateKeeper Systems', volume:0, ae:'Matt', pm:'', am:'Erin', pc:'', splits:{}},
+  {id:'b1', name:'HUBBELL POWER SYSTEMS, INC', volume:4500000, ae:'Marc', pm:'', am:'Peer', pc:'', splits:{}},
+  {id:'b2', name:'BAUSCH HEALTH US, LLC.', volume:1300000, ae:'Paul', pm:'', am:'Peer', pc:'', splits:{}},
+  {id:'b3', name:'HARMONY BIOSCIENCES, LLC', volume:452000, ae:'Paul', pm:'', am:'Peer', pc:'', splits:{}},
+  {id:'b4', name:'TRIS THERAPEUTICS, LLC', volume:246000, ae:'Paul', pm:'', am:'Peer', pc:'', splits:{}},
+  {id:'b5', name:'MITSUBISHI TANABE PHARMA AMERI', volume:213000, ae:'Justin', pm:'', am:'Peer', pc:'', splits:{}},
+  {id:'b6', name:'AVANTIK', volume:156000, ae:'Corin', pm:'', am:'Peer', pc:'', splits:{}},
+  {id:'b7', name:'AES CLEAN TECHNOLOGY, INC.', volume:146000, ae:'Colin', pm:'', am:'Peer', pc:'', splits:{}},
+  {id:'b8', name:'ALASTIN SKINCARE', volume:2000, ae:'Paul', pm:'', am:'Peer', pc:'', splits:{}},
+  {id:'b9', name:'SKINBETTER SCIENCE', volume:0, ae:'Paul', pm:'', am:'Peer', pc:'', splits:{}},
+  {id:'c1', name:'Incyte', volume:2000000, ae:'Justin', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c2', name:'ENDO PHARMACEUTICALS, INC', volume:1200000, ae:'Paul', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c3', name:'WEST PHARMACEUTICAL SERVICES', volume:634000, ae:'Dave', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c4', name:'CIVCO RADIOTHERAPY (QFIX - CQ)', volume:538000, ae:'Paul', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c5', name:'DSM BIOMEDICAL', volume:490000, ae:'Paul', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c6', name:'ALMIRALL PHARMACEUTICALS', volume:322000, ae:'Paul', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c7', name:'ALMIRALL', volume:306000, ae:'Justin', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c8', name:'MITSUBISHI CHEMICAL (QUADRANT)', volume:265000, ae:'Paul', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c9', name:'WRG LIVE', volume:258000, ae:'Dave', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c10', name:'ZYVET', volume:233000, ae:'Dave', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c11', name:"TOSHIBA INT'L (MACHINERY)", volume:179000, ae:'Paul', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c12', name:'ZYDUS PHARMACEUTICALS', volume:108000, ae:'Dave', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c13', name:'SAINT-GOBAIN PERFORMANCE PLAST', volume:75000, ae:'Dave', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c14', name:'EPIONCE', volume:56000, ae:'Dave', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c15', name:'SAINT-GOBAIN CORPORATION', volume:48000, ae:'Dave', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c16', name:'Strata Skin Sciences', volume:29000, ae:'Dave', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'c17', name:'Incyte Oncology', volume:0, ae:'Justin', pm:'', am:'Anthony', pc:'', splits:{}},
+  {id:'d1', name:'PharmaEssentia USA Corporation', volume:1400000, ae:'Colin', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d2', name:'EVENT STRATEGY GROUP', volume:1300000, ae:'Tom', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d3', name:'CANTALOUPE, INC.', volume:514000, ae:'Matt', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d4', name:'RHYTHM TX', volume:450000, ae:'Dave', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d5', name:'ALMAC GROUP - ALMAC HOUSE', volume:362000, ae:'Matt', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d6', name:'Kahua', volume:350000, ae:'Matt', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d7', name:'IRIDIUM', volume:337000, ae:'Marc', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d8', name:'WILKINS MEDIA', volume:286000, ae:'Dave', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d9', name:'ABBOTT VASCULAR', volume:261000, ae:'Dave', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d10', name:'PROJECT VELOCITY, INC.', volume:261000, ae:'Colin', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d11', name:'CDL NUCLEAR', volume:215000, ae:'Colin', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d12', name:'WANZL', volume:112000, ae:'Matt', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d13', name:'ABBOTT DIABETES CARE', volume:105000, ae:'Dave', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d14', name:'CC FORD GROUP', volume:63000, ae:'Justin', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d15', name:'SHOW SOURCE', volume:35000, ae:'Tom', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d16', name:'LEO', volume:0, ae:'Dave', pm:'', am:'Jack', pc:'', splits:{}},
+  {id:'d17', name:'Return Pro', volume:0, ae:'Colin', pm:'', am:'Jack', pc:'', splits:{}},
   {id:'e1', name:'ASCENDIS PHARMA INC.', volume:2600000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
   {id:'e2', name:'CENTRAL SQUARE (SUPERION)', volume:1200000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
   {id:'e3', name:'CQ MEDICAL', volume:373000, ae:'Dave', pm:'Matt G', am:'', pc:'', splits:{}},
@@ -390,25 +503,25 @@ let accounts = [
   {id:'f2', name:'Geron', volume:935000, ae:'Dave', pm:'Mallick', am:'', pc:'', splits:{}},
   {id:'f3', name:'Springworks', volume:701000, ae:'Dave', pm:'Mallick', am:'', pc:'', splits:{}},
   {id:'f4', name:'Amarok', volume:0, ae:'Marc', pm:'Mallick', am:'', pc:'', splits:{}},
-  {id:'g1', name:'THALES GLOBAL SERVICES FRANCE', volume:1400000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g2', name:'DIETZ & WATSON, INC.', volume:491000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g3', name:'JONATHAN ENGINEERED SOLUTIONS', volume:464000, ae:'Garrett', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g4', name:'THALES DIS USA, ID & VERIFICAT', volume:415000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g5', name:'AXALTA COATING SYSTEMS', volume:381000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g6', name:'THALES AEROSPACE DIVISION', volume:348000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g7', name:'THALES - MORGAN BREIT', volume:181000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g8', name:'THALES COMM- MD', volume:167000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g9', name:'THALES AVIONICS', volume:156000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g10', name:'HOVERTECH INTERNATIONAL', volume:144000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g11', name:'CHATHAM FINANCIAL', volume:81000, ae:'Marc', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g12', name:'THALES SIX GTS FRANCE', volume:73000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g13', name:'THALES - KATIE FYFFE', volume:68000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g14', name:'THALES COMMUNICATIONS, INC.-VA', volume:5000, ae:'Dave', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'g15', name:'LCR EMBEDDED SYSTEMS, INC.', volume:4000, ae:'Garrett', pm:'Damon', am:'', pc:'', splits:{}},
-  {id:'h1', name:'PROOF PRODUCTIONS-VMIGROUP', volume:4100000, ae:'Matt', pm:'Scott', am:'', pc:'', splits:{}},
-  {id:'h2', name:'GRUBBRR', volume:124000, ae:'Matt', pm:'Scott', am:'', pc:'', splits:{}},
-  {id:'h3', name:'Robot Proof', volume:6000, ae:'Matt', pm:'Scott', am:'', pc:'', splits:{}},
-  {id:'h4', name:'Mark43', volume:0, ae:'Matt', pm:'Scott', am:'', pc:'', splits:{}},
+  {id:'g1', name:'THALES GLOBAL SERVICES FRANCE', volume:1400000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g2', name:'DIETZ & WATSON, INC.', volume:491000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g3', name:'JONATHAN ENGINEERED SOLUTIONS', volume:464000, ae:'Garrett', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g4', name:'THALES DIS USA, ID & VERIFICAT', volume:415000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g5', name:'AXALTA COATING SYSTEMS', volume:381000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g6', name:'THALES AEROSPACE DIVISION', volume:348000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g7', name:'THALES - MORGAN BREIT', volume:181000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g8', name:'THALES COMM- MD', volume:167000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g9', name:'THALES AVIONICS', volume:156000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g10', name:'HOVERTECH INTERNATIONAL', volume:144000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g11', name:'CHATHAM FINANCIAL', volume:81000, ae:'Marc', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g12', name:'THALES SIX GTS FRANCE', volume:73000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g13', name:'THALES - KATIE FYFFE', volume:68000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g14', name:'THALES COMMUNICATIONS, INC.-VA', volume:5000, ae:'Dave', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'g15', name:'LCR EMBEDDED SYSTEMS, INC.', volume:4000, ae:'Garrett', pm:'', am:'Damon', pc:'', splits:{}},
+  {id:'h1', name:'PROOF PRODUCTIONS-VMIGROUP', volume:4100000, ae:'Matt', pm:'', am:'Scott', pc:'', splits:{}},
+  {id:'h2', name:'GRUBBRR', volume:124000, ae:'Matt', pm:'', am:'Scott', pc:'', splits:{}},
+  {id:'h3', name:'Robot Proof', volume:6000, ae:'Matt', pm:'', am:'Scott', pc:'', splits:{}},
+  {id:'h4', name:'Mark43', volume:0, ae:'Matt', pm:'', am:'Scott', pc:'', splits:{}},
   {id:'i1', name:'CSL BEHRING', volume:3300000, ae:'Tom', pm:'Alex', am:'', pc:'', splits:{}},
   {id:'i2', name:'CUSTOM AMERICA', volume:221000, ae:'Corin', pm:'Alex', am:'', pc:'', splits:{}},
   {id:'i3', name:'SES', volume:55000, ae:'Colin', pm:'Alex', am:'', pc:'', splits:{}},
@@ -416,16 +529,16 @@ let accounts = [
   {id:'i5', name:'Otsuka', volume:0, ae:'Colin', pm:'Alex', am:'', pc:'', splits:{}},
   {id:'i6', name:'Ensight', volume:0, ae:'Justin', pm:'Alex', am:'', pc:'', splits:{}},
   {id:'i7', name:'Survalent', volume:0, ae:'Justin', pm:'Alex', am:'', pc:'', splits:{}},
-  {id:'j1', name:'SUN PHARMACEUTICAL', volume:1400000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
-  {id:'j2', name:'AESCULAP, INC.', volume:802000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
-  {id:'j3', name:'PARAGONIX TECHNOLOGIES', volume:496000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
-  {id:'j4', name:'Certainteed', volume:335000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
-  {id:'j5', name:'SONEPAR USA', volume:219000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
-  {id:'j6', name:'Saint Gobain Abrasives', volume:101000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
-  {id:'j7', name:'NOVACARE - REHABILITATION', volume:66000, ae:'Tom', pm:'Connie', am:'', pc:'', splits:{}},
-  {id:'j8', name:'DOMPE US', volume:4000, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
-  {id:'j9', name:'TenPoint', volume:0, ae:'Dave', pm:'Connie', am:'', pc:'', splits:{}},
-  {id:'j10', name:'Bolder', volume:0, ae:'Matt', pm:'Connie', am:'', pc:'', splits:{}},
+  {id:'j1', name:'SUN PHARMACEUTICAL', volume:1400000, ae:'Dave', pm:'', am:'Connie', pc:'', splits:{}},
+  {id:'j2', name:'AESCULAP, INC.', volume:802000, ae:'Dave', pm:'', am:'Connie', pc:'', splits:{}},
+  {id:'j3', name:'PARAGONIX TECHNOLOGIES', volume:496000, ae:'Dave', pm:'', am:'Connie', pc:'', splits:{}},
+  {id:'j4', name:'Certainteed', volume:335000, ae:'Dave', pm:'', am:'Connie', pc:'', splits:{}},
+  {id:'j5', name:'SONEPAR USA', volume:219000, ae:'Dave', pm:'', am:'Connie', pc:'', splits:{}},
+  {id:'j6', name:'Saint Gobain Abrasives', volume:101000, ae:'Dave', pm:'', am:'Connie', pc:'', splits:{}},
+  {id:'j7', name:'NOVACARE - REHABILITATION', volume:66000, ae:'Tom', pm:'', am:'Connie', pc:'', splits:{}},
+  {id:'j8', name:'DOMPE US', volume:4000, ae:'Dave', pm:'', am:'Connie', pc:'', splits:{}},
+  {id:'j9', name:'TenPoint', volume:0, ae:'Dave', pm:'', am:'Connie', pc:'', splits:{}},
+  {id:'j10', name:'Bolder', volume:0, ae:'Matt', pm:'', am:'Connie', pc:'', splits:{}},
   {id:'k1', name:'IDORSIA PHARMACEUTICALS US Inc', volume:1300000, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
   {id:'k2', name:'TAKEDA PHARMACEUTICALS USA', volume:970000, ae:'Justin', pm:'Lisa', am:'', pc:'', splits:{}},
   {id:'k3', name:'Aiphone', volume:237000, ae:'Corin', pm:'Lisa', am:'', pc:'', splits:{}},
@@ -629,18 +742,19 @@ function renderDashboard() {
 // ===== ACCOUNTS =====
 function renderAccounts() {
   const aes = getAEs(); const pms = getPMs();
-  ['new-acct-ae'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(aes,''); });
-  ['new-acct-pm'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(pms,''); });
+  ['new-acct-ae'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(aes,'',true); });
+  ['new-acct-pm'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(pms,'',true); });
+  ['new-acct-am'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(getAMs(),'',true); });
+  ['new-acct-pc'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(getPCs(),'',true); });
   const maxVol = Math.max(...accounts.map(a=>a.volume),1);
   document.getElementById('accounts-table-wrap').innerHTML = `
     <table class="acct-table">
       <thead><tr>
         <th style="width:28px"></th>
-        <th>Account</th><th>Volume</th><th>AE</th><th>PM</th><th>AM / PC</th><th>Actions</th>
+        <th>Account</th><th>Volume</th><th>AE</th><th>AM</th><th>PM</th><th>PC</th><th>Actions</th>
       </tr></thead>
       <tbody>
         ${accounts.map(a=>{
-          const extra = [a.am?'AM:'+a.am:'', a.pc?'PC:'+a.pc:''].filter(Boolean);
           const roles = getNonAERoles(a);
           const showSplit = roles.length>1;
           return `<tr draggable="true" data-id="${a.id}" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="drop(event)" ondragleave="dragLeave(event)">
@@ -652,9 +766,10 @@ function renderAccounts() {
                 <span class="vol-text" style="cursor:pointer" onclick="inlineEditVol('${a.id}',this)">${fmtVol(a.volume)}</span>
               </div>
             </td>
-            <td><span class="team-avatar ${aeClass(a.ae)}" style="width:22px;height:22px;font-size:9px" title="${a.ae}">${getInitials(a.ae)}</span></td>
-            <td style="font-size:12px;color:#ccc">${a.pm}</td>
-            <td>${extra.map(e=>`<span class="badge badge-purple" style="font-size:9px;margin-right:2px">${e}</span>`).join('')}${showSplit?`<span class="split-tag" onclick="openEditModal('${a.id}')">split</span>`:''}</td>
+            ${a.ae?`<td><span class="team-avatar ${aeClass(a.ae)}" style="width:22px;height:22px;font-size:9px" title="${a.ae}">${getInitials(a.ae)}</span></td>`:`<td style="color:#666">—</td>`}
+            <td style="font-size:12px;color:#ccc">${a.am||'—'}</td>
+            <td style="font-size:12px;color:#ccc">${a.pm||'—'}</td>
+            <td>${a.pc?`<span class="badge badge-purple" style="font-size:9px;margin-right:2px">PC:${a.pc}</span>`:''}${showSplit?`<span class="split-tag" onclick="openEditModal('${a.id}')">split</span>`:''}</td>
             <td><button class="btn btn-ghost btn-sm" onclick="openEditModal('${a.id}')">Edit</button></td>
           </tr>`;
         }).join('')}
@@ -861,11 +976,12 @@ function openEditModal(id) {
   document.getElementById('modal-acct-title').textContent = 'Edit: ' + a.name;
   document.getElementById('edit-acct-name').value = a.name;
   document.getElementById('edit-acct-vol').value = a.volume;
-  document.getElementById('edit-acct-ae').innerHTML = buildSelect(getAEs(), a.ae);
-  document.getElementById('edit-acct-pm').innerHTML = buildSelect(getPMs(), a.pm);
+  document.getElementById('edit-acct-ae').innerHTML = buildSelect(getAEs(), a.ae, true);
+  document.getElementById('edit-acct-pm').innerHTML = buildSelect(getPMs(), a.pm, true);
   document.getElementById('edit-acct-am').innerHTML = buildSelect(getAMs(), a.am, true);
   document.getElementById('edit-acct-pc').innerHTML = buildSelect(getPCs(), a.pc, true);
   // When AM or PC changes, re-render split
+  document.getElementById('edit-acct-pm').onchange = () => renderSplitSection();
   document.getElementById('edit-acct-am').onchange = () => renderSplitSection();
   document.getElementById('edit-acct-pc').onchange = () => renderSplitSection();
   renderSplitSection();
@@ -971,7 +1087,7 @@ function addAccount() {
   if(!name) return alert('Please enter an account name.');
   accounts.push({id:'x'+nextId++, name, volume:parseInt(document.getElementById('new-acct-vol').value)||0,
     ae:document.getElementById('new-acct-ae').value, pm:document.getElementById('new-acct-pm').value,
-    am:'', pc:'', splits:{}});
+    am:document.getElementById('new-acct-am').value, pc:document.getElementById('new-acct-pc').value, splits:{}});
   document.getElementById('new-acct-name').value='';
   document.getElementById('new-acct-vol').value='';
   refreshAll();
@@ -1014,6 +1130,7 @@ function showTab(tab, el) {
 
 // ===== REFRESH =====
 function refreshAll() {
+  if (!sessionUnlocked) return; // app hidden behind login gate
   updateHeader();
   renderDashboard();
   renderAccounts();
@@ -1034,7 +1151,27 @@ const db = FIREBASE_ENABLED ? firebase.firestore() : null;
 
 function setSyncStatus(msg){ const el = document.getElementById('sync-status'); if(el) el.textContent = msg; }
 
-function serializeState(){ return { teamMembers, teams, accounts, nextId }; }
+// ===== ROLE MIGRATION (v2) =====
+// Peer, Anthony, Connie, Erin, Scott, Jack, Damon moved from PM to AM.
+// This migrates previously-saved cloud data once; the flag is stored in Firestore.
+const AM_CONVERTS = ['Peer','Anthony','Connie','Erin','Scott','Jack','Damon'];
+let rolesMigrated = false;
+function migrateData(){
+  if (rolesMigrated) return;
+  teamMembers.forEach(m=>{ if (AM_CONVERTS.includes(m.name) && m.role==='PM') m.role='AM'; });
+  accounts.forEach(a=>{
+    if (AM_CONVERTS.includes(a.pm) && !a.am){ a.am=a.pm; a.pm=''; }
+    if (a.splits){
+      Object.keys(a.splits).forEach(k=>{
+        const m = k.match(/^PM:(.+)$/);
+        if (m && AM_CONVERTS.includes(m[1])){ a.splits['AM:'+m[1]]=a.splits[k]; delete a.splits[k]; }
+      });
+    }
+  });
+  teams.forEach(t=>{ if (AM_CONVERTS.includes(t.pm) && !t.am){ t.am=t.pm; t.pm=''; } });
+  rolesMigrated = true;
+}
+function serializeState(){ migrateData(); return { teamMembers, teams, accounts, nextId, rolesMigratedV2: true }; }
 
 function applyState(d){
   applyingRemote = true;
@@ -1043,11 +1180,13 @@ function applyState(d){
     if (Array.isArray(d.teams))       teams       = d.teams;
     if (Array.isArray(d.accounts))    accounts    = d.accounts;
     if (typeof d.nextId === 'number') nextId      = d.nextId;
+    if (d.rolesMigratedV2) rolesMigrated = true;
+    migrateData();
   } finally { applyingRemote = false; }
 }
 
 function scheduleCloudSave(){
-  if (!FIREBASE_ENABLED || !cloudReady || applyingRemote) return;
+  if (!FIREBASE_ENABLED || !cloudReady || applyingRemote || !sessionUnlocked) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(function(){
     db.collection('app').doc('state').set(serializeState())
