@@ -279,7 +279,7 @@
 
 <!-- ACCOUNT MANAGERS (PM tab) -->
 <div id="panel-pms" class="panel">
-  <div class="alert alert-info">💡 Click Edit on any account to change volume, AE, team assignment, or split percentages.</div>
+  <div class="alert alert-info">💡 Every Account Manager, Project Manager, and Project Coordinator is listed below with their split-adjusted volume. Click Edit on any account to change assignments or split percentages.</div>
   <div id="pm-grid" class="pm-grid"></div>
 </div>
 
@@ -653,7 +653,7 @@ function aeClass(ae) {
 }
 function getInitials(n) { return (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
 function getTotalVol() { return accounts.reduce((s,a)=>s+a.volume,0); }
-function pmVol(pm) { return accounts.filter(a=>a.pm===pm).reduce((s,a)=>s+a.volume,0); }
+function pmVol(pm) { return accounts.filter(a=>a.pm===pm).reduce((s,a)=>s+getVolForRole(a,'PM:'+pm),0); }
 function amVol(am) { return accounts.filter(a=>a.am===am).reduce((s,a)=>s+getVolForRole(a,'AM:'+am),0); }
 function pcVol(pc) { return accounts.filter(a=>a.pc===pc).reduce((s,a)=>s+getVolForRole(a,'PC:'+pc),0); }
 function getNonAERoles(a) {
@@ -683,7 +683,7 @@ function buildSelect(opts, selected, includeNone=false) {
 
 // ===== HEADER =====
 function updateHeader() {
-  document.getElementById('hdr-pms').textContent = getPMs().length;
+  document.getElementById('hdr-pms').textContent = getAMs().length + getPMs().length + getPCs().length;
   document.getElementById('hdr-accts').textContent = accounts.length;
   document.getElementById('hdr-vol').textContent = fmtVol(getTotalVol());
 }
@@ -740,6 +740,21 @@ function renderDashboard() {
 }
 
 // ===== ACCOUNTS =====
+let acctSortKey='name', acctSortDir=1;
+function sortAccounts(key){
+  if (acctSortKey===key) acctSortDir=-acctSortDir;
+  else { acctSortKey=key; acctSortDir=1; }
+  renderAccounts();
+}
+function acctSortVal(a,key){
+  if (key==='name')   return (a.name||'').toLowerCase();
+  if (key==='volume') return a.volume||0;
+  if (key==='ae')     return (a.ae||'').toLowerCase();
+  if (key==='am')     return (a.am||'').toLowerCase();
+  if (key==='pm')     return (a.pm||'').toLowerCase();
+  if (key==='pc')     return (a.pc||'').toLowerCase();
+  return 0;
+}
 function renderAccounts() {
   const aes = getAEs(); const pms = getPMs();
   ['new-acct-ae'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(aes,'',true); });
@@ -747,14 +762,22 @@ function renderAccounts() {
   ['new-acct-am'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(getAMs(),'',true); });
   ['new-acct-pc'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(getPCs(),'',true); });
   const maxVol = Math.max(...accounts.map(a=>a.volume),1);
+  const sorted = [...accounts].sort((a,b)=>{
+    const va=acctSortVal(a,acctSortKey), vb=acctSortVal(b,acctSortKey);
+    if (va<vb) return -1*acctSortDir;
+    if (va>vb) return 1*acctSortDir;
+    return 0;
+  });
+  const arrow = k => acctSortKey===k ? (acctSortDir===1?' ▲':' ▼') : '';
+  const th = (k,label) => `<th style="cursor:pointer;user-select:none" onclick="sortAccounts('${k}')" title="Sort by ${label}">${label}${arrow(k)}</th>`;
   document.getElementById('accounts-table-wrap').innerHTML = `
     <table class="acct-table">
       <thead><tr>
         <th style="width:28px"></th>
-        <th>Account</th><th>Volume</th><th>AE</th><th>AM</th><th>PM</th><th>PC</th><th>Actions</th>
+        ${th('name','Account')}${th('volume','Volume')}${th('ae','AE')}${th('am','AM')}${th('pm','PM')}${th('pc','PC')}<th>Split</th><th>Actions</th>
       </tr></thead>
       <tbody>
-        ${accounts.map(a=>{
+        ${sorted.map(a=>{
           const roles = getNonAERoles(a);
           const showSplit = roles.length>1;
           return `<tr draggable="true" data-id="${a.id}" ondragstart="dragStart(event)" ondragover="dragOver(event)" ondrop="drop(event)" ondragleave="dragLeave(event)">
@@ -766,10 +789,11 @@ function renderAccounts() {
                 <span class="vol-text" style="cursor:pointer" onclick="inlineEditVol('${a.id}',this)">${fmtVol(a.volume)}</span>
               </div>
             </td>
-            ${a.ae?`<td><span class="team-avatar ${aeClass(a.ae)}" style="width:22px;height:22px;font-size:9px" title="${a.ae}">${getInitials(a.ae)}</span></td>`:`<td style="color:#666">—</td>`}
+            ${a.ae?`<td style="white-space:nowrap"><span class="team-avatar ${aeClass(a.ae)}" style="width:10px;height:10px;font-size:0;border-radius:50%" title="${a.ae}"></span> <span style="font-size:12px;color:#ccc">${a.ae}</span></td>`:`<td style="color:#666">—</td>`}
             <td style="font-size:12px;color:#ccc">${a.am||'—'}</td>
             <td style="font-size:12px;color:#ccc">${a.pm||'—'}</td>
-            <td>${a.pc?`<span class="badge badge-purple" style="font-size:9px;margin-right:2px">PC:${a.pc}</span>`:''}${showSplit?`<span class="split-tag" onclick="openEditModal('${a.id}')">split</span>`:''}</td>
+            <td style="font-size:12px;color:#ccc">${a.pc||'—'}</td>
+            <td>${showSplit?`<span class="split-tag" onclick="openEditModal('${a.id}')" title="View/edit volume split">split</span>`:''}</td>
             <td><button class="btn btn-ghost btn-sm" onclick="openEditModal('${a.id}')">Edit</button></td>
           </tr>`;
         }).join('')}
@@ -779,16 +803,17 @@ function renderAccounts() {
 
 // ===== PM CARDS =====
 function renderPMs() {
-  const pms = getPMs();
-  document.getElementById('pm-grid').innerHTML = pms.map(pm=>{
-    const pa = accounts.filter(a=>a.pm===pm).sort((a,b)=>b.volume-a.volume);
-    const total = pa.reduce((s,a)=>s+a.volume,0);
+  const mkCard = (name, role) => {
+    const key = role+':'+name;
+    const pa = accounts.filter(a=>a[role.toLowerCase()]===name).sort((a,b)=>b.volume-a.volume);
+    const total = pa.reduce((s,a)=>s+getVolForRole(a,key),0);
     const top = pa[0];
     const maxV = pa[0]?.volume||1;
+    const color = role==='AM'?'#60a5fa':role==='PM'?'#34d399':'#a78bfa';
     return `<div class="card">
       <div class="pm-name-row">
         <div>
-          <div class="card-title" style="font-size:15px">${pm}</div>
+          <div class="card-title" style="font-size:15px">${name} <span style="font-size:10px;color:${color};font-weight:700">${role}</span></div>
           <div class="pm-meta">${pa.length} accounts</div>
         </div>
         <div class="pm-volume">${fmtVol(total)}</div>
@@ -800,7 +825,7 @@ function renderPMs() {
           <tbody>
             ${pa.map(a=>{
               const roles=getNonAERoles(a);
-              const myVol=getVolForRole(a,'PM:'+pm);
+              const myVol=getVolForRole(a,key);
               const showSplit=roles.length>1;
               return `<tr>
                 <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${a.name}">${a.name}</td>
@@ -811,7 +836,7 @@ function renderPMs() {
                     ${showSplit?`<span style="font-size:10px;color:#a78bfa">(${fmtVol(myVol)})</span>`:''}
                   </div>
                 </td>
-                <td><span class="team-avatar ${aeClass(a.ae)}" style="width:18px;height:18px;font-size:8px">${getInitials(a.ae)}</span></td>
+                <td><span class="team-avatar ${aeClass(a.ae)}" style="width:18px;height:18px;font-size:8px" title="${a.ae}">${getInitials(a.ae)}</span></td>
                 <td><button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:10px" onclick="openEditModal('${a.id}')">Edit</button></td>
               </tr>`;
             }).join('')}
@@ -819,7 +844,13 @@ function renderPMs() {
         </table>
       </div>
     </div>`;
-  }).join('');
+  };
+  const cards = [
+    ...getAMs().map(n=>mkCard(n,'AM')),
+    ...getPMs().map(n=>mkCard(n,'PM')),
+    ...getPCs().map(n=>mkCard(n,'PC')),
+  ];
+  document.getElementById('pm-grid').innerHTML = cards.join('');
 }
 
 // ===== TEAMS TAB =====
