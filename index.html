@@ -212,12 +212,12 @@
   <div class="section-title">Volume by Role</div>
   <div class="grid-3" style="margin-bottom:24px">
     <div>
-      <div style="font-size:12px;font-weight:600;color:#34d399;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Project Managers (PM)</div>
-      <div id="pm-vol-list"></div>
-    </div>
-    <div>
       <div style="font-size:12px;font-weight:600;color:#60a5fa;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Account Managers (AM)</div>
       <div id="am-vol-list"></div>
+    </div>
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#34d399;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Project Managers (PM)</div>
+      <div id="pm-vol-list"></div>
     </div>
     <div>
       <div style="font-size:12px;font-weight:600;color:#a78bfa;margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px">Project Coordinators (PC)</div>
@@ -740,10 +740,20 @@ function renderDashboard() {
 }
 
 // ===== ACCOUNTS =====
-let acctSortKey='name', acctSortDir=1;
+// Layered sort: acctSortStack is an array of {key, dir} from most-recent (primary) to oldest (tiebreaker)
+let acctSortStack = [];
 function sortAccounts(key){
-  if (acctSortKey===key) acctSortDir=-acctSortDir;
-  else { acctSortKey=key; acctSortDir=1; }
+  const existing = acctSortStack.findIndex(s=>s.key===key);
+  if (existing===0) {
+    // Already primary — flip direction
+    acctSortStack[0].dir = acctSortStack[0].dir===1 ? -1 : 1;
+  } else {
+    // Remove from stack if present elsewhere, then push to front as new primary
+    if (existing>0) acctSortStack.splice(existing,1);
+    acctSortStack.unshift({key, dir:1});
+    // Keep at most 3 levels in the stack
+    if (acctSortStack.length>3) acctSortStack.length=3;
+  }
   renderAccounts();
 }
 function acctSortVal(a,key){
@@ -763,15 +773,28 @@ function renderAccounts() {
   ['new-acct-pc'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(getPCs(),'',true); });
   const maxVol = Math.max(...accounts.map(a=>a.volume),1);
   const sorted = [...accounts].sort((a,b)=>{
-    const va=acctSortVal(a,acctSortKey), vb=acctSortVal(b,acctSortKey);
-    if (va<vb) return -1*acctSortDir;
-    if (va>vb) return 1*acctSortDir;
+    if (!acctSortStack.length) return 0;
+    for (const {key,dir} of acctSortStack) {
+      const va=acctSortVal(a,key), vb=acctSortVal(b,key);
+      if (va<vb) return -1*dir;
+      if (va>vb) return 1*dir;
+    }
     return 0;
   });
-  const arrow = k => acctSortKey===k ? (acctSortDir===1?' ▲':' ▼') : '';
+  const arrow = k => {
+    const idx = acctSortStack.findIndex(s=>s.key===k);
+    if (idx<0) return '';
+    const dir = acctSortStack[idx].dir===1?' ▲':' ▼';
+    // Show priority badge if more than one sort is active
+    const badge = acctSortStack.length>1 ? `<sup style="font-size:8px;color:#a78bfa">${idx+1}</sup>` : '';
+    return badge+dir;
+  };
+  const sortHint = acctSortStack.length>1
+    ? `<div style="font-size:10px;color:#a78bfa;margin-bottom:6px">⬆ Layered sort active — <sup>1</sup> = primary, <sup>2</sup> = tiebreaker. Click a header to make it primary.</div>`
+    : '';
   const th = (k,label) => `<th style="cursor:pointer;user-select:none" onclick="sortAccounts('${k}')" title="Sort by ${label}">${label}${arrow(k)}</th>`;
   document.getElementById('accounts-table-wrap').innerHTML = `
-    <table class="acct-table">
+    ${sortHint}<table class="acct-table">
       <thead><tr>
         <th style="width:28px"></th>
         ${th('name','Account')}${th('volume','Volume')}${th('ae','AE')}${th('am','AM')}${th('pm','PM')}${th('pc','PC')}<th>Split</th><th>Actions</th>
@@ -845,12 +868,19 @@ function renderPMs() {
       </div>
     </div>`;
   };
-  const cards = [
-    ...getAMs().map(n=>mkCard(n,'AM')),
-    ...getPMs().map(n=>mkCard(n,'PM')),
-    ...getPCs().map(n=>mkCard(n,'PC')),
-  ];
-  document.getElementById('pm-grid').innerHTML = cards.join('');
+  const sortAlpha = arr => [...arr].sort((a,b)=>a.toLowerCase().localeCompare(b.toLowerCase()));
+  const mkSection = (label, role, color, names) => {
+    if (!names.length) return '';
+    const header = `<div style="grid-column:1/-1;display:flex;align-items:center;gap:12px;margin-top:8px;margin-bottom:4px">
+      <div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:1px;white-space:nowrap">${label} (${role}) — ${names.length} member${names.length===1?'':'s'}</div>
+      <div style="flex:1;height:1px;background:linear-gradient(to right,${color}55,transparent)"></div>
+    </div>`;
+    return header + names.map(n=>mkCard(n,role)).join('');
+  };
+  document.getElementById('pm-grid').innerHTML =
+    mkSection('Account Managers','AM','#60a5fa', sortAlpha(getAMs())) +
+    mkSection('Project Managers','PM','#34d399', sortAlpha(getPMs())) +
+    mkSection('Project Coordinators','PC','#a78bfa', sortAlpha(getPCs()));
 }
 
 // ===== TEAMS TAB =====
