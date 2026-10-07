@@ -232,8 +232,10 @@
     <div class="section-title">Add New Account</div>
     <div class="form-row">
       <div class="form-group"><label>Account Name</label><input id="new-acct-name" placeholder="Account name" style="width:180px"></div>
-      <div class="form-group"><label>Volume ($)</label><input id="new-acct-vol" type="number" placeholder="0" style="width:110px"></div>
+      <div class="form-group"><label>Last Year's Vol ($)</label><input id="new-acct-vol" type="number" placeholder="0" style="width:120px"></div>
+      <div class="form-group"><label>Projected Vol ($)</label><input id="new-acct-projvol" type="number" placeholder="0" style="width:120px"></div>
       <div class="form-group"><label>AE</label><select id="new-acct-ae"></select></div>
+      <div class="form-group"><label>Secondary AE</label><select id="new-acct-ae2"></select></div>
       <div class="form-group"><label>Assign to PM</label><select id="new-acct-pm"></select></div>
       <div class="form-group"><label>AM</label><select id="new-acct-am"></select></div>
       <div class="form-group"><label>PC</label><select id="new-acct-pc"></select></div>
@@ -294,8 +296,10 @@
   <div class="modal">
     <h2 id="modal-acct-title">Edit Account</h2>
     <div class="modal-row"><span class="modal-label">Account Name</span><input id="edit-acct-name" style="flex:1"></div>
-    <div class="modal-row"><span class="modal-label">Total Volume ($)</span><input id="edit-acct-vol" type="number" style="flex:1"></div>
+    <div class="modal-row"><span class="modal-label">Last Year's Volume ($)</span><input id="edit-acct-vol" type="number" style="flex:1"></div>
+    <div class="modal-row"><span class="modal-label">Projected Volume ($)</span><input id="edit-acct-projvol" type="number" style="flex:1"></div>
     <div class="modal-row"><span class="modal-label">Account Exec (AE)</span><select id="edit-acct-ae" style="flex:1"></select></div>
+    <div class="modal-row"><span class="modal-label">Secondary AE</span><select id="edit-acct-ae2" style="flex:1"><option value="">— None —</option></select></div>
     <div class="modal-row"><span class="modal-label">Project Manager</span><select id="edit-acct-pm" style="flex:1"></select></div>
     <div class="modal-row"><span class="modal-label">Acct Manager (AM)</span><select id="edit-acct-am" style="flex:1"><option value="">— None —</option></select></div>
     <div class="modal-row"><span class="modal-label">Proj Coord (PC)</span><select id="edit-acct-pc" style="flex:1"><option value="">— None —</option></select></div>
@@ -653,9 +657,21 @@ function aeClass(ae) {
 }
 function getInitials(n) { return (n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
 function getTotalVol() { return accounts.reduce((s,a)=>s+a.volume,0); }
+function getTotalProjVol() { return accounts.reduce((s,a)=>s+(a.projVol||0),0); }
 function pmVol(pm) { return accounts.filter(a=>a.pm===pm).reduce((s,a)=>s+getVolForRole(a,'PM:'+pm),0); }
+function pmProjVol(pm) { return accounts.filter(a=>a.pm===pm).reduce((s,a)=>s+(a.projVol||0)*getVolRatio(a,'PM:'+pm),0); }
 function amVol(am) { return accounts.filter(a=>a.am===am).reduce((s,a)=>s+getVolForRole(a,'AM:'+am),0); }
+function amProjVol(am) { return accounts.filter(a=>a.am===am).reduce((s,a)=>s+(a.projVol||0)*getVolRatio(a,'AM:'+am),0); }
 function pcVol(pc) { return accounts.filter(a=>a.pc===pc).reduce((s,a)=>s+getVolForRole(a,'PC:'+pc),0); }
+function pcProjVol(pc) { return accounts.filter(a=>a.pc===pc).reduce((s,a)=>s+(a.projVol||0)*getVolRatio(a,'PC:'+pc),0); }
+function getVolRatio(a, roleKey) {
+  const roles = getNonAERoles(a);
+  if (!roles.length) return 1;
+  const splits = roles.map(r=>a.splits&&a.splits[r]!=null?a.splits[r]:100/roles.length);
+  const total = splits.reduce((s,v)=>s+v,0)||1;
+  const idx = roles.indexOf(roleKey);
+  return idx>=0 ? splits[idx]/total : 1/roles.length;
+}
 function getNonAERoles(a) {
   const r=[];
   if (a.pm) r.push('PM:'+a.pm);
@@ -695,47 +711,59 @@ function renderDashboard() {
   document.getElementById('summary-stats').innerHTML = `
     <div class="stat-box"><div class="stat-val">${pms.length}</div><div class="stat-lbl">Project Managers</div></div>
     <div class="stat-box"><div class="stat-val">${accounts.length}</div><div class="stat-lbl">Active Accounts</div></div>
-    <div class="stat-box"><div class="stat-val">${fmtVol(total)}</div><div class="stat-lbl">Total Volume</div></div>
-    <div class="stat-box"><div class="stat-val">${fmtVol(pms.length?total/pms.length:0)}</div><div class="stat-lbl">Avg per PM</div></div>
+    <div class="stat-box"><div class="stat-val">${fmtVol(total)}</div><div class="stat-lbl">Last Year's Volume</div></div>
+    <div class="stat-box"><div class="stat-val" style="color:#2dd4bf">${fmtVol(getTotalProjVol())}</div><div class="stat-lbl" style="color:#2dd4bf">Projected Volume</div></div>
   `;
 
   // PM Volume
-  const pmData = pms.map(p=>({name:p,vol:pmVol(p)})).sort((a,b)=>b.vol-a.vol);
-  const maxPM = pmData[0]?.vol||1;
+  const pmData = pms.map(p=>({name:p,vol:pmVol(p),proj:pmProjVol(p)})).sort((a,b)=>b.vol-a.vol);
+  const maxPM = Math.max(pmData[0]?.vol||1, pmData[0]?.proj||1);
   document.getElementById('pm-vol-list').innerHTML = pmData.map(d=>`
-    <div style="margin-bottom:7px">
+    <div style="margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
-        <span style="color:#ccc">${d.name}</span><span style="color:#34d399;font-weight:600">${fmtVol(d.vol)}</span>
+        <span style="color:#ccc">${d.name}</span>
+        <span><span style="color:#34d399;font-weight:600">${fmtVol(d.vol)}</span>${d.proj?` <span style="color:#2dd4bf;font-size:10px">→ ${fmtVol(d.proj)}</span>`:''}</span>
       </div>
-      <div style="background:#1e2535;border-radius:4px;height:6px">
-        <div style="background:#10b981;border-radius:4px;height:6px;width:${Math.max(2,d.vol/maxPM*100)}%"></div>
+      <div style="background:#1e2535;border-radius:4px;height:5px;margin-bottom:2px">
+        <div style="background:#10b981;border-radius:4px;height:5px;width:${Math.max(2,d.vol/maxPM*100)}%"></div>
       </div>
+      ${d.proj?`<div style="background:#1e2535;border-radius:4px;height:3px">
+        <div style="background:#0d9488;border-radius:4px;height:3px;width:${Math.max(2,d.proj/maxPM*100)}%"></div>
+      </div>`:''}
     </div>`).join('');
 
   // AM Volume
-  const amData = getAMs().map(p=>({name:p,vol:amVol(p)})).sort((a,b)=>b.vol-a.vol);
-  const maxAM = amData[0]?.vol||1;
+  const amData = getAMs().map(p=>({name:p,vol:amVol(p),proj:amProjVol(p)})).sort((a,b)=>b.vol-a.vol);
+  const maxAM = Math.max(amData[0]?.vol||1, amData[0]?.proj||1);
   document.getElementById('am-vol-list').innerHTML = amData.length ? amData.map(d=>`
-    <div style="margin-bottom:7px">
+    <div style="margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
-        <span style="color:#ccc">${d.name}</span><span style="color:#60a5fa;font-weight:600">${fmtVol(d.vol)}</span>
+        <span style="color:#ccc">${d.name}</span>
+        <span><span style="color:#60a5fa;font-weight:600">${fmtVol(d.vol)}</span>${d.proj?` <span style="color:#2dd4bf;font-size:10px">→ ${fmtVol(d.proj)}</span>`:''}</span>
       </div>
-      <div style="background:#1e2535;border-radius:4px;height:6px">
-        <div style="background:#2563eb;border-radius:4px;height:6px;width:${Math.max(2,d.vol/maxAM*100)}%"></div>
+      <div style="background:#1e2535;border-radius:4px;height:5px;margin-bottom:2px">
+        <div style="background:#2563eb;border-radius:4px;height:5px;width:${Math.max(2,d.vol/maxAM*100)}%"></div>
       </div>
+      ${d.proj?`<div style="background:#1e2535;border-radius:4px;height:3px">
+        <div style="background:#0d9488;border-radius:4px;height:3px;width:${Math.max(2,d.proj/maxAM*100)}%"></div>
+      </div>`:''}
     </div>`).join('') : '<div style="color:#555;font-size:12px;padding:10px">No AMs assigned to accounts yet.</div>';
 
   // PC Volume
-  const pcData = getPCs().map(p=>({name:p,vol:pcVol(p)})).sort((a,b)=>b.vol-a.vol);
-  const maxPC = pcData[0]?.vol||1;
+  const pcData = getPCs().map(p=>({name:p,vol:pcVol(p),proj:pcProjVol(p)})).sort((a,b)=>b.vol-a.vol);
+  const maxPC = Math.max(pcData[0]?.vol||1, pcData[0]?.proj||1);
   document.getElementById('pc-vol-list').innerHTML = pcData.length ? pcData.map(d=>`
-    <div style="margin-bottom:7px">
+    <div style="margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
-        <span style="color:#ccc">${d.name}</span><span style="color:#a78bfa;font-weight:600">${fmtVol(d.vol)}</span>
+        <span style="color:#ccc">${d.name}</span>
+        <span><span style="color:#a78bfa;font-weight:600">${fmtVol(d.vol)}</span>${d.proj?` <span style="color:#2dd4bf;font-size:10px">→ ${fmtVol(d.proj)}</span>`:''}</span>
       </div>
-      <div style="background:#1e2535;border-radius:4px;height:6px">
-        <div style="background:#8b5cf6;border-radius:4px;height:6px;width:${Math.max(2,d.vol/maxPC*100)}%"></div>
+      <div style="background:#1e2535;border-radius:4px;height:5px;margin-bottom:2px">
+        <div style="background:#8b5cf6;border-radius:4px;height:5px;width:${Math.max(2,d.vol/maxPC*100)}%"></div>
       </div>
+      ${d.proj?`<div style="background:#1e2535;border-radius:4px;height:3px">
+        <div style="background:#0d9488;border-radius:4px;height:3px;width:${Math.max(2,d.proj/maxPC*100)}%"></div>
+      </div>`:''}
     </div>`).join('') : '<div style="color:#555;font-size:12px;padding:10px">No PCs assigned to accounts yet.</div>';
 }
 
@@ -759,7 +787,9 @@ function sortAccounts(key){
 function acctSortVal(a,key){
   if (key==='name')   return (a.name||'').toLowerCase();
   if (key==='volume') return a.volume||0;
+  if (key==='projvol') return a.projVol||0;
   if (key==='ae')     return (a.ae||'').toLowerCase();
+  if (key==='ae2')    return (a.ae2||'').toLowerCase();
   if (key==='am')     return (a.am||'').toLowerCase();
   if (key==='pm')     return (a.pm||'').toLowerCase();
   if (key==='pc')     return (a.pc||'').toLowerCase();
@@ -768,6 +798,7 @@ function acctSortVal(a,key){
 function renderAccounts() {
   const aes = getAEs(); const pms = getPMs();
   ['new-acct-ae'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(aes,'',true); });
+  document.getElementById('new-acct-ae2').innerHTML='<option value="">— None —</option>'+aes.map(n=>`<option value="${n}">${n}</option>`).join('');
   ['new-acct-pm'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(pms,'',true); });
   ['new-acct-am'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(getAMs(),'',true); });
   ['new-acct-pc'].forEach(id=>{ document.getElementById(id).innerHTML=buildSelect(getPCs(),'',true); });
@@ -797,7 +828,7 @@ function renderAccounts() {
     ${sortHint}<table class="acct-table">
       <thead><tr>
         <th style="width:28px"></th>
-        ${th('name','Account')}${th('volume','Volume')}${th('ae','AE')}${th('am','AM')}${th('pm','PM')}${th('pc','PC')}<th>Split</th><th>Actions</th>
+        ${th('name','Account')}${th('volume','Last Yr Vol')}${th('projvol','Proj Vol')}${th('ae','AE')}${th('ae2','2nd AE')}${th('am','AM')}${th('pm','PM')}${th('pc','PC')}<th>Split</th><th>Actions</th>
       </tr></thead>
       <tbody>
         ${sorted.map(a=>{
@@ -812,7 +843,14 @@ function renderAccounts() {
                 <span class="vol-text" style="cursor:pointer" onclick="inlineEditVol('${a.id}',this)">${fmtVol(a.volume)}</span>
               </div>
             </td>
+            <td>
+              <div class="vol-bar-wrap">
+                <div class="vol-bar" style="width:${Math.max(3,(a.projVol||0)/Math.max(maxVol,1)*70)}px;background:${(a.projVol||0)===0?'#2a2f3e':'#0d9488'}"></div>
+                <span class="vol-text" style="cursor:pointer;color:#2dd4bf" onclick="inlineEditProjVol('${a.id}',this)">${fmtVol(a.projVol||0)}</span>
+              </div>
+            </td>
             ${a.ae?`<td style="white-space:nowrap"><span class="team-avatar ${aeClass(a.ae)}" style="width:10px;height:10px;font-size:0;border-radius:50%" title="${a.ae}"></span> <span style="font-size:12px;color:#ccc">${a.ae}</span></td>`:`<td style="color:#666">—</td>`}
+            <td style="font-size:12px;color:#999">${a.ae2||'—'}</td>
             <td style="font-size:12px;color:#ccc">${a.am||'—'}</td>
             <td style="font-size:12px;color:#ccc">${a.pm||'—'}</td>
             <td style="font-size:12px;color:#ccc">${a.pc||'—'}</td>
@@ -830,6 +868,7 @@ function renderPMs() {
     const key = role+':'+name;
     const pa = accounts.filter(a=>a[role.toLowerCase()]===name).sort((a,b)=>b.volume-a.volume);
     const total = pa.reduce((s,a)=>s+getVolForRole(a,key),0);
+    const totalProj = pa.reduce((s,a)=>s+(a.projVol||0)*getVolRatio(a,key),0);
     const top = pa[0];
     const maxV = pa[0]?.volume||1;
     const color = role==='AM'?'#60a5fa':role==='PM'?'#34d399':'#a78bfa';
@@ -839,9 +878,12 @@ function renderPMs() {
           <div class="card-title" style="font-size:15px">${name} <span style="font-size:10px;color:${color};font-weight:700">${role}</span></div>
           <div class="pm-meta">${pa.length} accounts</div>
         </div>
-        <div class="pm-volume">${fmtVol(total)}</div>
+        <div>
+          <div class="pm-volume">${fmtVol(total)}</div>
+          ${totalProj?`<div style="font-size:10px;color:#2dd4bf;text-align:right;margin-top:2px">→ ${fmtVol(totalProj)} proj</div>`:''}
+        </div>
       </div>
-      ${top?`<div class="pm-meta" style="margin-bottom:8px">⭐ Top: ${top.name} (${fmtVol(top.volume)})</div>`:''}
+      ${top?`<div class="pm-meta" style="margin-bottom:8px">⭐ Top: ${top.name} (${fmtVol(top.volume)}${top.projVol?` → ${fmtVol(top.projVol)} proj`:''})</div>`:''}
       <div style="max-height:260px;overflow-y:auto">
         <table class="acct-table">
           <thead><tr><th>Account</th><th>Volume</th><th>AE</th><th></th></tr></thead>
@@ -857,6 +899,7 @@ function renderPMs() {
                     <div class="vol-bar" style="width:${Math.max(2,a.volume/maxV*45)}px;background:${a.volume===0?'#2a2f3e':'#2563eb'}"></div>
                     <span style="font-size:11px;color:#60a5fa">${fmtVol(a.volume)}</span>
                     ${showSplit?`<span style="font-size:10px;color:#a78bfa">(${fmtVol(myVol)})</span>`:''}
+                    ${a.projVol?`<span style="font-size:10px;color:#2dd4bf">→${fmtVol(a.projVol)}</span>`:''}
                   </div>
                 </td>
                 <td><span class="team-avatar ${aeClass(a.ae)}" style="width:18px;height:18px;font-size:8px" title="${a.ae}">${getInitials(a.ae)}</span></td>
@@ -1037,7 +1080,9 @@ function openEditModal(id) {
   document.getElementById('modal-acct-title').textContent = 'Edit: ' + a.name;
   document.getElementById('edit-acct-name').value = a.name;
   document.getElementById('edit-acct-vol').value = a.volume;
+  document.getElementById('edit-acct-projvol').value = a.projVol||0;
   document.getElementById('edit-acct-ae').innerHTML = buildSelect(getAEs(), a.ae, true);
+  document.getElementById('edit-acct-ae2').innerHTML = '<option value="">— None —</option>' + getAEs().map(n=>`<option value="${n}"${n===a.ae2?' selected':''}>${n}</option>`).join('');
   document.getElementById('edit-acct-pm').innerHTML = buildSelect(getPMs(), a.pm, true);
   document.getElementById('edit-acct-am').innerHTML = buildSelect(getAMs(), a.am, true);
   document.getElementById('edit-acct-pc').innerHTML = buildSelect(getPCs(), a.pc, true);
@@ -1100,7 +1145,9 @@ function saveAccount() {
   const a = accounts.find(x=>x.id===editingAcctId); if (!a) return;
   a.name = document.getElementById('edit-acct-name').value;
   a.volume = parseInt(document.getElementById('edit-acct-vol').value)||0;
+  a.projVol = parseInt(document.getElementById('edit-acct-projvol').value)||0;
   a.ae = document.getElementById('edit-acct-ae').value;
+  a.ae2 = document.getElementById('edit-acct-ae2').value;
   a.pm = document.getElementById('edit-acct-pm').value;
   a.am = document.getElementById('edit-acct-am').value;
   a.pc = document.getElementById('edit-acct-pc').value;
@@ -1127,6 +1174,16 @@ function inlineEditVol(id, el) {
   inp.onblur = ()=>{ a.volume=parseInt(inp.value)||0; refreshAll(); };
   inp.onkeydown = e=>{ if(e.key==='Enter') inp.blur(); if(e.key==='Escape') refreshAll(); };
 }
+function inlineEditProjVol(id, el) {
+  const a = accounts.find(x=>x.id===id); if (!a) return;
+  const inp = document.createElement('input');
+  inp.type='number'; inp.value=a.projVol||0;
+  inp.style.cssText='width:70px;font-size:12px;background:#1e2535;color:#2dd4bf;border:1px solid #2dd4bf;border-radius:4px;padding:1px 4px';
+  el.replaceWith(inp); inp.focus(); inp.select();
+  const commit = () => { a.projVol=parseInt(inp.value)||0; renderAccounts(); persistData(); };
+  inp.addEventListener('blur', commit);
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter') inp.blur(); if(e.key==='Escape') renderAccounts(); });
+}
 
 // ===== DRAG & DROP =====
 function dragStart(e) { dragSrcId=e.currentTarget.dataset.id; }
@@ -1146,11 +1203,17 @@ function drop(e) {
 function addAccount() {
   const name=document.getElementById('new-acct-name').value.trim();
   if(!name) return alert('Please enter an account name.');
-  accounts.push({id:'x'+nextId++, name, volume:parseInt(document.getElementById('new-acct-vol').value)||0,
-    ae:document.getElementById('new-acct-ae').value, pm:document.getElementById('new-acct-pm').value,
-    am:document.getElementById('new-acct-am').value, pc:document.getElementById('new-acct-pc').value, splits:{}});
+  accounts.push({id:'x'+nextId++, name,
+    volume:parseInt(document.getElementById('new-acct-vol').value)||0,
+    projVol:parseInt(document.getElementById('new-acct-projvol').value)||0,
+    ae:document.getElementById('new-acct-ae').value,
+    ae2:document.getElementById('new-acct-ae2').value,
+    pm:document.getElementById('new-acct-pm').value,
+    am:document.getElementById('new-acct-am').value,
+    pc:document.getElementById('new-acct-pc').value, splits:{}});
   document.getElementById('new-acct-name').value='';
   document.getElementById('new-acct-vol').value='';
+  document.getElementById('new-acct-projvol').value='';
   refreshAll();
 }
 function addTeamMember() {
