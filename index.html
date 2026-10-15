@@ -659,11 +659,11 @@ function getInitials(n) { return (n||'?').split(' ').map(w=>w[0]).join('').toUpp
 function getTotalVol() { return accounts.reduce((s,a)=>s+a.volume,0); }
 function getTotalProjVol() { return accounts.reduce((s,a)=>s+(a.projVol||0),0); }
 function pmVol(pm) { return accounts.filter(a=>a.pm===pm).reduce((s,a)=>s+getVolForRole(a,'PM:'+pm),0); }
-function pmProjVol(pm) { return accounts.filter(a=>a.pm===pm).reduce((s,a)=>s+(a.projVol||0)*getVolRatio(a,'PM:'+pm),0); }
+function pmProjVol(pm) { return accounts.filter(a=>a.pm===pm).reduce((s,a)=>s+getProjVolForRole(a,'PM:'+pm),0); }
 function amVol(am) { return accounts.filter(a=>a.am===am).reduce((s,a)=>s+getVolForRole(a,'AM:'+am),0); }
-function amProjVol(am) { return accounts.filter(a=>a.am===am).reduce((s,a)=>s+(a.projVol||0)*getVolRatio(a,'AM:'+am),0); }
+function amProjVol(am) { return accounts.filter(a=>a.am===am).reduce((s,a)=>s+getProjVolForRole(a,'AM:'+am),0); }
 function pcVol(pc) { return accounts.filter(a=>a.pc===pc).reduce((s,a)=>s+getVolForRole(a,'PC:'+pc),0); }
-function pcProjVol(pc) { return accounts.filter(a=>a.pc===pc).reduce((s,a)=>s+(a.projVol||0)*getVolRatio(a,'PC:'+pc),0); }
+function pcProjVol(pc) { return accounts.filter(a=>a.pc===pc).reduce((s,a)=>s+getProjVolForRole(a,'PC:'+pc),0); }
 function getVolRatio(a, roleKey) {
   const roles = getNonAERoles(a);
   if (!roles.length) return 1;
@@ -671,6 +671,17 @@ function getVolRatio(a, roleKey) {
   const total = splits.reduce((s,v)=>s+v,0)||1;
   const idx = roles.indexOf(roleKey);
   return idx>=0 ? splits[idx]/total : 1/roles.length;
+}
+// Mirror of getVolForRole but for projVol — uses identical split logic so dashboard
+// projected totals always match the sum of per-account projected volumes shown in the
+// Account Managers tab.
+function getProjVolForRole(a, roleKey) {
+  const roles = getNonAERoles(a);
+  if (roles.length===0) return 0;
+  if (roles.length===1) return a.projVol||0;
+  const splits = a.splits||{};
+  const pct = splits[roleKey]!==undefined ? splits[roleKey] : Math.round(100/roles.length);
+  return (a.projVol||0)*pct/100;
 }
 function getNonAERoles(a) {
   const r=[];
@@ -868,7 +879,7 @@ function renderPMs() {
     const key = role+':'+name;
     const pa = accounts.filter(a=>a[role.toLowerCase()]===name).sort((a,b)=>b.volume-a.volume);
     const total = pa.reduce((s,a)=>s+getVolForRole(a,key),0);
-    const totalProj = pa.reduce((s,a)=>s+(a.projVol||0)*getVolRatio(a,key),0);
+    const totalProj = pa.reduce((s,a)=>s+getProjVolForRole(a,key),0);
     const top = pa[0];
     const maxV = pa[0]?.volume||1;
     const color = role==='AM'?'#60a5fa':role==='PM'?'#34d399':'#a78bfa';
